@@ -78,13 +78,16 @@ private:
 
   // public interface
 public:
-  config(int seed, bool quiet, ormap_it start, ormap_it fin)
+  config(int seed, bool quiet, ormap_cit start, ormap_cit fin)
       : cfg_(start, fin), quiet_(quiet), mt_source(seed) {}
   int get(int id) const;
   bool quiet() const { return quiet_; }
   ormap_cit cbegin() const { return cfg_.cbegin(); }
   ormap_cit cend() const { return cfg_.cend(); }
   void dump(std::ostream &os) const;
+  int rand_positive() const {
+    return rand_from(0, std::numeric_limits<int>::max());
+  }
 };
 
 config read_global_config(int argc, char **argv);

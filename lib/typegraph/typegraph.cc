@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 //
-// Callgraph impl
+// Typegraph impl
 //
 //------------------------------------------------------------------------------
 //
@@ -12,21 +12,18 @@
 #include <iostream>
 #include <memory>
 
-#include "callgraph.h"
+#include "typegraph.h"
 
-namespace cg {
-callgraph_t::callgraph_t(cfg::config &&cf,
-                         std::shared_ptr<tg::typegraph_t> tgraph)
-    : config_(std::move(cf)), tgraph_(std::move(tgraph)) {
+namespace tg {
+typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   if (!config_.quiet())
-    std::cout << "Creating callgraph" << std::endl;
+    std::cout << "Creating typegraph" << std::endl;
 }
-} // namespace cg
+} // namespace tg
 
 // task system support
-std::shared_ptr<cg::callgraph_t>
-callgraph_create(int seed, const cfg::config &cf,
-                 std::shared_ptr<tg::typegraph_t> sptg) {
+std::shared_ptr<tg::typegraph_t> typegraph_create(int seed,
+                                                  const cfg::config &cf) {
   cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
-  return std::make_shared<cg::callgraph_t>(std::move(newcf), sptg);
+  return std::make_shared<tg::typegraph_t>(std::move(newcf));
 }

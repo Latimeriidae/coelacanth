@@ -43,32 +43,42 @@ int main(int argc, char **argv) {
   // 3. Create consumer threads and start
   std::vector<std::thread> consumers;
   auto nthreads = default_config.get(NCONSUMERS);
-  
+
   if (!default_config.quiet())
     std::cout << "Starting " << nthreads << " consumer threads" << std::endl;
-  
+
   for (int i = 0; i < nthreads; ++i)
     consumers.emplace_back(consumer_thread_func);
 
   // 4. Put tasks
 
-  auto &&[callgraph_task, callgraph_fut] =
-      create_task(callgraph_create, default_config);
+  // create type graph
+  int tgseed = default_config.rand_positive();
 
-  // create call graph
+  auto &&[typegraph_task, typegraph_fut] =
+      create_task<tg_task_type>(typegraph_create, tgseed, default_config);
+
+  {
+    std::lock_guard<std::mutex> lk{task_queue_mutex};
+    task_queue.push(std::move(typegraph_task));
+  }
+
+  auto tg = typegraph_fut.get();
+  int cgseed = default_config.rand_positive();
+
+  auto &&[callgraph_task, callgraph_fut] =
+      create_task<cg_task_type>(callgraph_create, cgseed, default_config, tg);
+
   {
     std::lock_guard<std::mutex> lk{task_queue_mutex};
     task_queue.push(std::move(callgraph_task));
   }
-
-  // create type graph
 
   int nvar = default_config.get(NVAR);
   int nsplits = default_config.get(NSPLITS);
   int nlocs = default_config.get(NLOCS);
   int narith = default_config.get(NARITH);
 
-  // try future get
   auto cg = callgraph_fut.get();
 
   for (int r_var = 0; r_var < nvar; ++r_var) {

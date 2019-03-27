@@ -25,35 +25,35 @@
 //------------------------------------------------------------------------------
 
 // callgraph
+namespace tg {
+class typegraph_t;
+}
+
+using tg_task_type = std::shared_ptr<tg::typegraph_t>(int, const cfg::config &);
+
+std::shared_ptr<tg::typegraph_t> typegraph_create(int, const cfg::config &);
+
+// callgraph
 namespace cg {
-class callgraph;
+class callgraph_t;
 }
 
-using cg_task_type = std::shared_ptr<cg::callgraph>(const cfg::config &);
+using cg_task_type = std::shared_ptr<cg::callgraph_t>(
+    int, const cfg::config &, std::shared_ptr<tg::typegraph_t>);
 
-std::shared_ptr<cg::callgraph> callgraph_create(const cfg::config &);
-
-// typegraph
-namespace types {
-class typegraph;
-}
-
-using tg_task_type = std::shared_ptr<types::typegraph>(const cfg::config &);
-
-std::shared_ptr<types::typegraph> typegraph_create(const cfg::config &);
+std::shared_ptr<cg::callgraph_t>
+callgraph_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>);
 
 // varassign
 namespace va {
 class varassign;
 }
 
-using va_task_type = std::shared_ptr<va::varassign>(
-    const cfg::config &, std::shared_ptr<cg::callgraph>,
-    std::shared_ptr<types::typegraph>);
+using va_task_type =
+    std::shared_ptr<va::varassign>(int, std::shared_ptr<tg::typegraph_t>);
 
-std::shared_ptr<va::varassign>
-vassign_create(const cfg::config &, std::shared_ptr<cg::callgraph>,
-               std::shared_ptr<types::typegraph>);
+std::shared_ptr<va::varassign> vassign_create(int,
+                                              std::shared_ptr<tg::typegraph_t>);
 
 // controlgraph
 
@@ -97,16 +97,16 @@ public:
   // invoke if R not void
   template <typename R2 = R,
             std::enable_if_t<!std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args... args) && {
+  R2 operator()(Args &&... args) && {
     R2 ret = invoke(ptr.get(), std::forward<Args>(args)...);
     clear();
-    return ret;
+    return std::move(ret);
   }
 
   // invoke if R is void
   template <typename R2 = R,
             std::enable_if_t<std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args... args) && {
+  R2 operator()(Args &&... args) && {
     invoke(ptr.get(), std::forward<Args>(args)...);
     clear();
   }
@@ -116,7 +116,7 @@ public:
     ptr.reset();
   }
 
-  explicit operator bool() const { return (bool)ptr; }
+  explicit operator bool() const { return static_cast<bool>(ptr); }
 };
 
 // generic (type-erased) task to put on queue
@@ -127,9 +127,10 @@ using task_t = fire_once<int()>;
 // generic creation of task and its future
 // for example:
 // create_task(callgraph_create, default_config);
-// will return pair of task and future for std::shared_ptr<cg::callgraph>
-template <typename F, typename... Args> auto create_task(F f, Args &&... args) {
-  std::packaged_task<cg_task_type> tsk{f};
+// will return pair of task and future for std::shared_ptr<cg::callgraph_t>
+template <typename TT, typename F, typename... Args>
+auto create_task(F f, Args &&... args) {
+  std::packaged_task<TT> tsk{f};
   auto fut = tsk.get_future();
   task_t t{[ct = std::move(tsk),
             args = std::make_tuple(std::forward<Args>(args)...)]() mutable {

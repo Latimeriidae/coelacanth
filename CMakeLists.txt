@@ -13,20 +13,16 @@ endif()
 set(CMAKE_C_FLAGS ${OPTIMIZATION_LEVEL})
 set(CMAKE_CXX_FLAGS ${OPTIMIZATION_LEVEL})
 
-# configurations
-file(GLOB_RECURSE CONFIG_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/config/*.cc)
-add_library(configlib STATIC ${CONFIG_SOURCES})
-target_include_directories(configlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/config)
-target_include_directories(configlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# callgraph
-file(GLOB_RECURSE CALLGRAPH_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/callgraph/*.cc)
-add_library(callgraphlib STATIC ${CALLGRAPH_SOURCES})
-target_include_directories(callgraphlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/callgraph)
-target_include_directories(callgraphlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(SUBFOLDERS "config;typegraph;callgraph")
+foreach(SUBFOLDER ${SUBFOLDERS})
+  file(GLOB_RECURSE SUB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/${SUBFOLDER}/*.cc)
+  add_library(${SUBFOLDER}lib STATIC ${SUB_SOURCES})
+  target_include_directories(${SUBFOLDER}lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/${SUBFOLDER})
+  target_include_directories(${SUBFOLDER}lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+endforeach()
 
 # final executable
 add_executable(coelacanth coelacanth.cc)
-target_link_libraries(coelacanth configlib callgraphlib boost_program_options)
+target_link_libraries(coelacanth configlib callgraphlib typegraphlib boost_program_options)
 
 install(TARGETS coelacanth DESTINATION bin)

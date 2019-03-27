@@ -75,7 +75,8 @@ void register_option(int global_id, string global_name, optrecord optrec,
 
 void register_options() {
   desc.add_options()("help", "produce help message");
-  desc.add_options()("seed", po::value<int>()->default_value(time(nullptr)), "seed for RNG");
+  desc.add_options()("seed", po::value<int>()->default_value(time(nullptr)),
+                     "seed for RNG");
   desc.add_options()("quiet", po::bool_switch()->default_value(false),
                      "enable file overwrite");
 #define OPREGISTRY
@@ -90,39 +91,41 @@ config read_global_config(int argc, char **argv) {
   // parse programm options, overwrite defaults
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
-  
+
   if (vm.count("help")) {
     std::cout << desc << std::endl;
     exit(0);
   }
 
   bool quiet = vm["quiet"].as<bool>();
-  int seed = vm["seed"].as<int>();;
-  
+  int seed = vm["seed"].as<int>();
+  ;
+
   if (!quiet) {
     std::cout << "starting with seed = " << seed << std::endl;
   }
-  
+
   for (auto &r : option_registry) {
     string name = options_names[r.first];
     string namemax = name + "_max";
-    if ((0 == vm.count(name.c_str())) &&
-        (0 == vm.count(namemax.c_str())))
+    if ((0 == vm.count(name.c_str())) && (0 == vm.count(namemax.c_str())))
       continue;
-    std::visit([name](auto &arg){
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, cfg::single>)
-        arg.val = vm[name.c_str()].as<int>();
-      else if constexpr (std::is_same_v<T, cfg::diap>) {
-        string namemax = name + "_max";
-        string namemin = name + "_min";
-        arg.from = vm[namemin.c_str()].as<int>();
-        arg.to = vm[namemax.c_str()].as<int>();
-      } else if constexpr (std::is_same_v<T, cfg::probf>) {
-        arg.probs = vm[name.c_str()].as<std::vector<int> >();
-      } else
-          static_assert(always_false<T>::value, "non-exhaustive visitor!");
-    }, r.second);
+    std::visit(
+        [name](auto &arg) {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, cfg::single>)
+            arg.val = vm[name.c_str()].as<int>();
+          else if constexpr (std::is_same_v<T, cfg::diap>) {
+            string namemax = name + "_max";
+            string namemin = name + "_min";
+            arg.from = vm[namemin.c_str()].as<int>();
+            arg.to = vm[namemax.c_str()].as<int>();
+          } else if constexpr (std::is_same_v<T, cfg::probf>) {
+            arg.probs = vm[name.c_str()].as<std::vector<int>>();
+          } else
+            static_assert(always_false<T>::value, "non-exhaustive visitor!");
+        },
+        r.second);
   }
 
   // default config ready
