@@ -32,6 +32,7 @@ class typegraph_t;
 using tg_task_type = std::shared_ptr<tg::typegraph_t>(int, const cfg::config &);
 
 std::shared_ptr<tg::typegraph_t> typegraph_create(int, const cfg::config &);
+void typegraph_dump(std::shared_ptr<tg::typegraph_t>, std::ostream &);
 
 // callgraph
 namespace cg {

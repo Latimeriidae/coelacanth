@@ -90,6 +90,10 @@ public:
   }
 };
 
+template <typename T> int get(const config &cfg, T id) {
+  return cfg.get(static_cast<int>(id));
+}
+
 config read_global_config(int argc, char **argv);
 
 } // namespace cfg

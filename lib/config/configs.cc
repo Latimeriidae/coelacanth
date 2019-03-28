@@ -141,7 +141,7 @@ int config::from_probf(probf_cit start, probf_cit fin) const {
   if (start == fin)
     throw std::runtime_error("Probability function shall be non-empty");
 
-  int sum = std::accumulate(start, fin, 0);
+  int sum = *(fin - 1);
   if (sum == 0)
     throw std::runtime_error("Probability function shall be normalizable");
 

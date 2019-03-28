@@ -64,6 +64,12 @@ int main(int argc, char **argv) {
   }
 
   auto tg = typegraph_fut.get();
+
+  {
+    std::ofstream of("initial.types");
+    typegraph_dump(tg, of);
+  }
+
   int cgseed = default_config.rand_positive();
 
   auto &&[callgraph_task, callgraph_fut] =
