@@ -21,6 +21,7 @@
 #pragma once
 
 #include <iostream>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -55,7 +56,9 @@ struct scalar_t {
 };
 
 struct struct_t {
-  std::vector<bool> bitfields_;
+  // 0 means not a bitfield
+  // positive value n means bitfield of size n
+  std::vector<int> bitfields_;
 };
 
 struct array_t {
@@ -64,10 +67,12 @@ struct array_t {
 
 struct pointer_t {};
 
+using common_t = std::variant<scalar_t, struct_t, array_t, pointer_t>;
+
 struct vertexprop_t {
   int id;
   category_t cat;
-  std::variant<scalar_t, struct_t, array_t, pointer_t> type;
+  common_t type;
   std::string get_name() const;
 };
 
@@ -80,7 +85,7 @@ std::ostream &operator<<(std::ostream &os, vertexprop_t v);
 //------------------------------------------------------------------------------
 
 using tgraph_t = boost::adjacency_list<boost::vecS, boost::vecS,
-                                       boost::directedS, vertexprop_t>;
+                                       boost::bidirectionalS, vertexprop_t>;
 using vertex_iter_t = boost::graph_traits<tgraph_t>::vertex_iterator;
 using edge_iter_t = boost::graph_traits<tgraph_t>::edge_iterator;
 using vertex_t = boost::graph_traits<tgraph_t>::vertex_descriptor;
@@ -101,7 +106,9 @@ private:
   void init_scalars();
   vertex_t create_scalar();
   void create_scalar_at(vertex_t parent);
-  void do_split();
+  std::optional<vertex_t> get_pred(vertex_t v);
+  int do_split();
+  int split_at(vertex_t vdesc, common_t cont);
 };
 
 } // namespace tg

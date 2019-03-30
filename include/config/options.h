@@ -15,7 +15,20 @@
 
 enum { NCONSUMERS = 0, NVAR, NSPLITS, NLOCS, NARITH };
 
-enum class TG { SEEDS = 100, SPLITS, CONTTYPE, NFIELDS, LONGT, FPT };
+enum class TG {
+  SEEDS = 100,
+  SPLITS,
+  CONTTYPE,
+  NFIELDS,
+  LONGT,
+  FPT,
+  ARRSIZE,
+  MAXARRPREDS,
+  MAXSTRUCTPREDS,
+  MAXPREDS,
+  BFPROB,
+  BFSIZE
+};
 
 enum class CG { MODULES = 200 };
 
@@ -47,6 +60,12 @@ OPTPROBF(TG::CONTTYPE, (probf_t{50, 100}),
 OPTDIAP(TG::NFIELDS, 2, 6, "Number of structure fields");
 OPTSINGLE(TG::LONGT, 0, "Allow long types");
 OPTSINGLE(TG::FPT, 0, "Allow FP types");
+OPTDIAP(TG::ARRSIZE, 2, 10, "Size of array");
+OPTSINGLE(TG::MAXARRPREDS, 3, "Maximum number of nested arrays");
+OPTSINGLE(TG::MAXSTRUCTPREDS, 3, "Maximum number of nested structures");
+OPTSINGLE(TG::MAXPREDS, 5, "Maximum number of nested types");
+OPTSINGLE(TG::BFPROB, 10, "Percentage of bitfield probability");
+OPTDIAP(TG::BFSIZE, 1, 31, "Bitfiled size diap");
 
 // callgraph-level
 OPTDIAP(CG::MODULES, 2, 6, "Numer of programm modules");

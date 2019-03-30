@@ -8,6 +8,14 @@
 // (3) locIR from controlgraph                   (--nlocs)
 // (4) exprIR from locIR                         (--narith)
 //
+// Main sequence is putting tasks on queue and getting required futures
+//
+// High level order is:
+// 1. Read options and create global config object
+// 2. Create consumer threads and start
+// 3. Put all tasks for
+//
+
 //------------------------------------------------------------------------------
 //
 // This file is licensed after LGPL v3
@@ -25,6 +33,7 @@
 
 #include "configs.h"
 #include "tasksystem.h"
+#include "timestamp.h"
 
 std::queue<task_t> task_queue;
 std::mutex task_queue_mutex;
@@ -32,15 +41,18 @@ std::mutex task_queue_mutex;
 void consumer_thread_func();
 
 int main(int argc, char **argv) {
-  // 1. Read options and create global config object
+  // default config
   cfg::config default_config = cfg::read_global_config(argc, argv);
+
+  if (!default_config.quiet())
+    std::cout << "Coelacanth built on " << TIMESTAMP << std::endl;
 
   {
     std::ofstream of("initial.cfg");
     default_config.dump(of);
   }
 
-  // 3. Create consumer threads and start
+  // consumer threads
   std::vector<std::thread> consumers;
   auto nthreads = default_config.get(NCONSUMERS);
 
@@ -50,9 +62,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < nthreads; ++i)
     consumers.emplace_back(consumer_thread_func);
 
-  // 4. Put tasks
-
-  // create type graph
+  // put typegraph task
   int tgseed = default_config.rand_positive();
 
   auto &&[typegraph_task, typegraph_fut] =
@@ -63,6 +73,7 @@ int main(int argc, char **argv) {
     task_queue.push(std::move(typegraph_task));
   }
 
+  // now we need typegraph to create callgraph
   auto tg = typegraph_fut.get();
 
   {
@@ -72,6 +83,7 @@ int main(int argc, char **argv) {
 
   int cgseed = default_config.rand_positive();
 
+  // put callgraph task
   auto &&[callgraph_task, callgraph_fut] =
       create_task<cg_task_type>(callgraph_create, cgseed, default_config, tg);
 
@@ -85,27 +97,38 @@ int main(int argc, char **argv) {
   int nlocs = default_config.get(NLOCS);
   int narith = default_config.get(NARITH);
 
+  // put varassign tasks
+  for (int r_var = 0; r_var < nvar; ++r_var) {
+    // TODO: put task to queue
+  }
+
+  // now we need callgraph to start creating controlgraphs
   auto cg = callgraph_fut.get();
 
   for (int r_var = 0; r_var < nvar; ++r_var) {
-    // create varassign
-    // TODO:
+    // now we need #r_var's varassign to start creating controlgraphs
+    // TODO: future.get
 
+    // put controlgraph tasks
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
-      // create callgraph
-      // TODO:
-
-      for (int r_locs = 0; r_locs < nlocs; ++r_locs) {
-        // create locIR
-        // TODO:
-
-        for (int r_exprs = 0; r_exprs < narith; ++r_exprs) {
-          // create exprIR
-          // TODO:
-        }
-      }
+      // TODO: put task to queue
     }
   }
+
+  for (int r_var = 0; r_var < nvar; ++r_var)
+    for (int r_splits = 0; r_splits < nsplits; ++r_splits)
+      for (int r_locs = 0; r_locs < nlocs; ++r_locs) {
+        // create locIR
+        // TODO: put task to queue
+      }
+
+  for (int r_var = 0; r_var < nvar; ++r_var)
+    for (int r_splits = 0; r_splits < nsplits; ++r_splits)
+      for (int r_locs = 0; r_locs < nlocs; ++r_locs)
+        for (int r_exprs = 0; r_exprs < narith; ++r_exprs) {
+          // create exprIR
+          // TODO: put task to queue
+        }
 
   task_t sentinel{[] { return -1; }};
   {
