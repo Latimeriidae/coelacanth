@@ -34,6 +34,7 @@
 #include "configs.h"
 #include "tasksystem.h"
 #include "timestamp.h"
+#include "version.h"
 
 std::queue<task_t> task_queue;
 std::mutex task_queue_mutex;
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
   cfg::config default_config = cfg::read_global_config(argc, argv);
 
   if (!default_config.quiet())
-    std::cout << "Coelacanth built on " << TIMESTAMP << std::endl;
+    std::cout << "Coelacanth info: git hash = " << GIT_COMMIT_HASH << ", built on " << TIMESTAMP << std::endl;
 
   {
     std::ofstream of("initial.cfg");

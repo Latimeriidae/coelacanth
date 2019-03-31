@@ -33,26 +33,30 @@
 
 namespace tg {
 
-// string category name for dumps
-static const char *cat_str(category_t c) {
-  switch (c) {
-  case category_t::SCALAR:
-    return "T";
-  case category_t::STRUCT:
-    return "S";
-  case category_t::ARRAY:
-    return "A";
-  case category_t::POINTER:
-    return "P";
-  default:
-    throw std::runtime_error("Unknown category");
-  }
-}
-
 // label for dot dump of typestorage
 std::string vertexprop_t::get_name() const {
   std::ostringstream s;
-  s << cat_str(cat) << id;
+  switch (cat) {
+  case category_t::SCALAR: {
+    const scalar_desc_t *sc = std::get<scalar_t>(type).sdesc;
+    s << "T" << id << " = " << sc->name;
+    break;
+  }
+  case category_t::STRUCT:
+    s << "S" << id;
+    break;
+  case category_t::ARRAY: {
+    const auto &ar = std::get<array_t>(type);
+    s << "A" << id << " [" << ar.nitems << "]";
+    break;
+  }
+  case category_t::POINTER:
+    s << "P" << id;
+    break;
+  default:
+    throw std::runtime_error("Unknown category");
+  }
+
   return s.str();
 }
 
@@ -171,7 +175,7 @@ vertex_t typegraph_t::create_scalar() {
 
   graph_[sv].id = sv;
   graph_[sv].cat = category_t::SCALAR;
-  graph_[sv].type = scalar_t{scid};
+  graph_[sv].type.emplace<scalar_t>(&scalars_[scid]);
   return sv;
 }
 

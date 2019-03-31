@@ -17,15 +17,28 @@ set(CMAKE_C_FLAGS ${OPTIMIZATION_LEVEL})
 set(CMAKE_CXX_FLAGS ${OPTIMIZATION_LEVEL})
 
 # timestamp
-FILE (WRITE ${CMAKE_BINARY_DIR}/timestamp.cmake "STRING(TIMESTAMP TIMEZ UTC)\n")
-FILE (APPEND ${CMAKE_BINARY_DIR}/timestamp.cmake "FILE(WRITE timestamp.h \"#pragma once\\n\\n\")\n")
-FILE (APPEND ${CMAKE_BINARY_DIR}/timestamp.cmake "FILE(APPEND timestamp.h \"#define TIMESTAMP \\\"\${TIMEZ}\\\"\\n\\n\")\n")
-ADD_CUSTOM_TARGET (
-    timestamp
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/timestamp.cmake
-    ADD_DEPENDENCIES ${CMAKE_BINARY_DIR}/timestamp.cmake)
-    
-# Main libraries build
+file (WRITE ${CMAKE_BINARY_DIR}/timestamp.cmake "STRING(TIMESTAMP TIMEZ UTC)\n")
+file (APPEND ${CMAKE_BINARY_DIR}/timestamp.cmake "FILE(WRITE timestamp.h \"#pragma once\\n\\n\")\n")
+file (APPEND ${CMAKE_BINARY_DIR}/timestamp.cmake "FILE(APPEND timestamp.h \"#define TIMESTAMP \\\"\${TIMEZ}\\\"\\n\\n\")\n")
+add_custom_target (
+  timestamp
+  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/timestamp.cmake
+  add_dependencies ${CMAKE_BINARY_DIR}/timestamp.cmake
+)
+
+# git hash
+execute_process(
+  COMMAND git log -1 --format=%h
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_COMMIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/version.h.in
+  ${CMAKE_BINARY_DIR}/version.h
+)
+
+# main libraries build
 set(SUBFOLDERS "config;typegraph;callgraph")
 foreach(SUBFOLDER ${SUBFOLDERS})
   file(GLOB_RECURSE SUB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/${SUBFOLDER}/*.cc)

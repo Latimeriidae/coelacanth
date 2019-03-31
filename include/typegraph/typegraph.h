@@ -52,7 +52,8 @@ struct scalar_desc_t {
 };
 
 struct scalar_t {
-  int scalar_no;
+  const scalar_desc_t *sdesc;
+  explicit scalar_t(const scalar_desc_t *desc = nullptr) : sdesc(desc) {}
 };
 
 struct struct_t {
@@ -99,7 +100,7 @@ class typegraph_t {
   // typegraph public interface
 public:
   typegraph_t(cfg::config &&);
-  void dump(std::ostream &os);
+  void dump(std::ostream &);
 
   // typegraph construction helpers
 private:
