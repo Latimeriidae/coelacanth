@@ -44,6 +44,7 @@ using cg_task_type = std::shared_ptr<cg::callgraph_t>(
 
 std::shared_ptr<cg::callgraph_t>
 callgraph_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>);
+void callgraph_dump(std::shared_ptr<cg::callgraph_t> cg, std::ostream &os);
 
 // varassign
 namespace va {

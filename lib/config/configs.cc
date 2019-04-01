@@ -10,6 +10,7 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
+#include <boost\algorithm\string\replace.hpp>
 #include <boost\program_options.hpp>
 #include <ctime>
 #include <map>
@@ -44,6 +45,7 @@ void register_option(int global_id, string global_name, optrecord optrec,
                      string description) {
   std::transform(global_name.begin(), global_name.end(), global_name.begin(),
                  ::tolower);
+  boost::replace_all(global_name, "::", "-");
   option_registry[global_id] = optrec;
   options_byname[global_name] = global_id;
   options_names[global_id] = global_name;
@@ -57,8 +59,8 @@ void register_option(int global_id, string global_name, optrecord optrec,
           desc.add_options()(global_name.c_str(), po::value<int>(),
                              description.c_str());
         else if constexpr (std::is_same_v<T, cfg::diap>) {
-          string gnmax = global_name + "_max";
-          string gnmin = global_name + "_min";
+          string gnmax = global_name + "-max";
+          string gnmin = global_name + "-min";
           desc.add_options()(gnmax.c_str(), po::value<int>(),
                              description.c_str());
           desc.add_options()(gnmin.c_str(), po::value<int>(),

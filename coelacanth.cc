@@ -3,10 +3,10 @@
 // coelacanth.cc -- main driver for coelacanth test generator
 //
 // we have 4 randomization levels
-// (1) varassign from typegraph                  (--nvar)
-// (2) controlgraph from callgraph and varassign (--nsplits)
-// (3) locIR from controlgraph                   (--nlocs)
-// (4) exprIR from locIR                         (--narith)
+// (1) varassign from typegraph                  (--pg-var)
+// (2) controlgraph from callgraph and varassign (--pg-splits)
+// (3) locIR from controlgraph                   (--pg-locs)
+// (4) exprIR from locIR                         (--pg-arith)
 //
 // Main sequence is putting tasks on queue and getting required futures
 //
@@ -46,7 +46,8 @@ int main(int argc, char **argv) {
   cfg::config default_config = cfg::read_global_config(argc, argv);
 
   if (!default_config.quiet())
-    std::cout << "Coelacanth info: git hash = " << GIT_COMMIT_HASH << ", built on " << TIMESTAMP << std::endl;
+    std::cout << "Coelacanth info: git hash = " << GIT_COMMIT_HASH
+              << ", built on " << TIMESTAMP << std::endl;
 
   {
     std::ofstream of("initial.cfg");
@@ -55,7 +56,7 @@ int main(int argc, char **argv) {
 
   // consumer threads
   std::vector<std::thread> consumers;
-  auto nthreads = default_config.get(NCONSUMERS);
+  auto nthreads = cfg::get(default_config, PG::CONSUMERS);
 
   if (!default_config.quiet())
     std::cout << "Starting " << nthreads << " consumer threads" << std::endl;
@@ -93,10 +94,10 @@ int main(int argc, char **argv) {
     task_queue.push(std::move(callgraph_task));
   }
 
-  int nvar = default_config.get(NVAR);
-  int nsplits = default_config.get(NSPLITS);
-  int nlocs = default_config.get(NLOCS);
-  int narith = default_config.get(NARITH);
+  int nvar = cfg::get(default_config, PG::VAR);
+  int nsplits = cfg::get(default_config, PG::SPLITS);
+  int nlocs = cfg::get(default_config, PG::LOCS);
+  int narith = cfg::get(default_config, PG::ARITH);
 
   // put varassign tasks
   for (int r_var = 0; r_var < nvar; ++r_var) {
@@ -105,6 +106,11 @@ int main(int argc, char **argv) {
 
   // now we need callgraph to start creating controlgraphs
   auto cg = callgraph_fut.get();
+
+  {
+    std::ofstream of("initial.calls");
+    callgraph_dump(cg, of);
+  }
 
   for (int r_var = 0; r_var < nvar; ++r_var) {
     // now we need #r_var's varassign to start creating controlgraphs

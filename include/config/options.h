@@ -13,10 +13,13 @@
 
 #if defined(OPTENUM)
 
-enum { NCONSUMERS = 0, NVAR, NSPLITS, NLOCS, NARITH };
+// programm level (from 0)
+enum class PG { CONSUMERS = 0, VAR, SPLITS, LOCS, ARITH, MAX };
 
+// typegraph level (from PG::MAX)
 enum class TG {
-  SEEDS = 100,
+  START = int(PG::MAX),
+  SEEDS,
   SPLITS,
   CONTTYPE,
   NFIELDS,
@@ -27,10 +30,26 @@ enum class TG {
   MAXSTRUCTPREDS,
   MAXPREDS,
   BFPROB,
-  BFSIZE
+  BFSIZE,
+  MAX
 };
 
-enum class CG { MODULES = 200 };
+// callgraph level
+enum class CG { START = int(TG::MAX), MODULES, VERTICES, EDGES, ADDLEAFS, MAX };
+
+// varassign level
+enum class VA { START = int(CG::MAX), VARS, MAX };
+
+// controlgraph level
+enum class CN { START = int(VA::MAX), MAX };
+
+// locir level
+enum class LI { START = int(CN::MAX), MAX };
+
+// exprir level
+enum class EI { START = int(LI::MAX), MAX };
+
+// probability distribution structures
 
 // for TG::CONTTYPE
 enum { TGC_ARRAY = 0, TGC_STRUCT = 1 };
@@ -46,11 +65,11 @@ enum { TGC_ARRAY = 0, TGC_STRUCT = 1 };
 #define OPTPROBF(N, V, T) register_option(static_cast<int>(N), #N, probf{V}, T)
 
 // programm-level
-OPTSINGLE(NCONSUMERS, 5, "Number of consumer threads");
-OPTSINGLE(NVAR, 2, "Number of varassign randomizations");
-OPTSINGLE(NSPLITS, 5, "Number of controlgraph randomizations");
-OPTSINGLE(NLOCS, 5, "Number of LocIR randomizations");
-OPTSINGLE(NARITH, 10, "Number of ExprIR randomizations");
+OPTSINGLE(PG::CONSUMERS, 5, "Number of consumer threads");
+OPTSINGLE(PG::VAR, 2, "Number of varassign randomizations");
+OPTSINGLE(PG::SPLITS, 5, "Number of controlgraph randomizations");
+OPTSINGLE(PG::LOCS, 5, "Number of LocIR randomizations");
+OPTSINGLE(PG::ARITH, 10, "Number of ExprIR randomizations");
 
 // typegraph-level
 OPTSINGLE(TG::SEEDS, 12, "Number of typegraph seed nodes");
@@ -68,7 +87,10 @@ OPTSINGLE(TG::BFPROB, 10, "Percentage of bitfield probability");
 OPTDIAP(TG::BFSIZE, 1, 31, "Bitfiled size diap");
 
 // callgraph-level
-OPTDIAP(CG::MODULES, 2, 6, "Numer of programm modules");
+OPTDIAP(CG::MODULES, 2, 6, "Number of programm modules");
+OPTDIAP(CG::VERTICES, 10, 20, "Number of initial leaf and non-leaf functions");
+OPTDIAP(CG::EDGES, 20, 30, "Number of initial CG edges");
+OPTDIAP(CG::ADDLEAFS, 10, 15, "Number of additional leaf functions");
 
 #undef OPTPROBF
 #undef OPTDIAP

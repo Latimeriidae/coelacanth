@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.2)
 
 project(coelacanth)
 
-# optional clang-format run
-# > make clangformat
+# clang-format run
 include(clang-format.cmake)
 
 # build flags
@@ -51,5 +50,6 @@ endforeach()
 add_executable(coelacanth coelacanth.cc)
 target_link_libraries(coelacanth configlib callgraphlib typegraphlib boost_program_options)
 add_dependencies (coelacanth timestamp)
+add_dependencies (coelacanth clangformat)
 
 install(TARGETS coelacanth DESTINATION bin)
