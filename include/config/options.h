@@ -22,9 +22,8 @@ enum class TG {
   SEEDS,
   SPLITS,
   CONTTYPE,
+  TYPEPROB,
   NFIELDS,
-  LONGT,
-  FPT,
   ARRSIZE,
   MAXARRPREDS,
   MAXSTRUCTPREDS,
@@ -52,7 +51,23 @@ enum class EI { START = int(LI::MAX), MAX };
 // probability distribution structures
 
 // for TG::CONTTYPE
-enum { TGC_ARRAY = 0, TGC_STRUCT = 1 };
+enum { TGC_ARRAY = 0, TGC_STRUCT };
+
+// for TG::TYPEPROB
+enum {
+  TGP_UCHAR = 0,
+  TGP_SCHAR,
+  TGP_USHORT,
+  TGP_SSHORT,
+  TGP_UINT,
+  TGP_SINT,
+  TGP_ULONG,
+  TGP_SLONG,
+  TGP_ULLONG,
+  TGP_SLLONG,
+  TGP_FLOAT,
+  TGP_DOUBLE
+};
 
 #endif
 
@@ -72,13 +87,14 @@ OPTSINGLE(PG::LOCS, 5, "Number of LocIR randomizations");
 OPTSINGLE(PG::ARITH, 10, "Number of ExprIR randomizations");
 
 // typegraph-level
-OPTSINGLE(TG::SEEDS, 12, "Number of typegraph seed nodes");
-OPTSINGLE(TG::SPLITS, 20, "Number of typegraph splits to perform");
+OPTSINGLE(TG::SEEDS, 20, "Number of typegraph seed nodes");
+OPTSINGLE(TG::SPLITS, 30, "Number of typegraph splits to perform");
 OPTPROBF(TG::CONTTYPE, (probf_t{50, 100}),
          "Probability function for type containers");
+OPTPROBF(TG::TYPEPROB,
+         (probf_t{8, 17, 25, 33, 42, 50, 58, 67, 75, 83, 92, 100}),
+         "Probability function for scalar types");
 OPTDIAP(TG::NFIELDS, 2, 6, "Number of structure fields");
-OPTSINGLE(TG::LONGT, 0, "Allow long types");
-OPTSINGLE(TG::FPT, 0, "Allow FP types");
 OPTDIAP(TG::ARRSIZE, 2, 10, "Size of array");
 OPTSINGLE(TG::MAXARRPREDS, 3, "Maximum number of nested arrays");
 OPTSINGLE(TG::MAXSTRUCTPREDS, 3, "Maximum number of nested structures");

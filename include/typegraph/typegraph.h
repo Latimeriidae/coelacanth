@@ -11,6 +11,10 @@
 // from user perspective most often query to typegraph is query of random type
 // with certain limitations
 //
+// Iterators
+// no iterator can be used to iterate backwards
+// all iterators have same value type: pair of (vertex descriptor, common type)
+//
 //------------------------------------------------------------------------------
 //
 // This file is licensed after LGPL v3
@@ -24,72 +28,17 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
-
-#include "config/configs.h"
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 
+#include "config/configs.h"
+#include "typecats.h"
+#include "typeiters.h"
+
 namespace tg {
-
-//------------------------------------------------------------------------------
-//
-// Type categories support
-//
-//------------------------------------------------------------------------------
-
-enum class category_t : unsigned char { SCALAR, STRUCT, ARRAY, POINTER };
-
-struct scalar_desc_t {
-  std::string name;
-  int size;
-  bool is_float;
-  bool is_signed;
-
-  scalar_desc_t(const char *nm, int sz, bool isf, bool iss)
-      : name(nm), size(sz), is_float(isf), is_signed(iss) {}
-};
-
-struct scalar_t {
-  const scalar_desc_t *sdesc;
-  explicit scalar_t(const scalar_desc_t *desc = nullptr) : sdesc(desc) {}
-};
-
-struct struct_t {
-  // 0 means not a bitfield
-  // positive value n means bitfield of size n
-  std::vector<int> bitfields_;
-};
-
-struct array_t {
-  int nitems;
-};
-
-struct pointer_t {};
-
-using common_t = std::variant<scalar_t, struct_t, array_t, pointer_t>;
-
-struct vertexprop_t {
-  int id;
-  category_t cat;
-  common_t type;
-  std::string get_name() const;
-};
-
-std::ostream &operator<<(std::ostream &os, vertexprop_t v);
-
-//------------------------------------------------------------------------------
-//
-// Typegraph
-//
-//------------------------------------------------------------------------------
-
-using tgraph_t = boost::adjacency_list<boost::vecS, boost::vecS,
-                                       boost::bidirectionalS, vertexprop_t>;
-using vertex_iter_t = boost::graph_traits<tgraph_t>::vertex_iterator;
-using edge_iter_t = boost::graph_traits<tgraph_t>::edge_iterator;
-using vertex_t = boost::graph_traits<tgraph_t>::vertex_descriptor;
 
 class typegraph_t {
   cfg::config config_;
@@ -100,7 +49,28 @@ class typegraph_t {
   // typegraph public interface
 public:
   typegraph_t(cfg::config &&);
-  void dump(std::ostream &);
+
+  vertex_iter_t begin() const;
+  vertex_iter_t end() const;
+
+  int ntypes() const { return boost::num_vertices(graph_); }
+
+  ct_iterator_t begin_types() const;
+  ct_iterator_t end_types() const;
+
+  child_iterator_t begin_childs(vertex_t v) const;
+  child_iterator_t end_childs(vertex_t v) const;
+
+  vertexprop_t get_type(vertex_t v) const { return graph_[v]; }
+
+  vertexprop_t get_random_type() const;
+
+  void dump(std::ostream &) const;
+
+  // typegraph public but not recommended to unenlightened use interface
+public:
+  vertexprop_t vertex_from(vertex_t v) const { return graph_[v]; }
+  vertex_t dest_from(edge_t e) const { return boost::target(e, graph_); }
 
   // typegraph construction helpers
 private:

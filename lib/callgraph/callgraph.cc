@@ -16,6 +16,7 @@
 #include <boost/graph/random.hpp>
 
 #include "callgraph.h"
+#include "typegraph/typean.h"
 #include "typegraph/typegraph.h"
 
 namespace cg {
@@ -72,6 +73,9 @@ callgraph_t::callgraph_t(cfg::config &&cf,
     leafs_.insert(sv);
     boost::add_edge(*it, sv, graph_);
   }
+
+  // just for test
+  tg::type_analysis_t an(*tgraph.get());
 
   // 3. spanning trees
   // 4. component roots

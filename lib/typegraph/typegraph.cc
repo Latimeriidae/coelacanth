@@ -66,6 +66,12 @@ std::ostream &operator<<(std::ostream &os, vertexprop_t v) {
   return os;
 }
 
+vertexprop_t vertex_from(const typegraph_t *pt, vertex_t v) {
+  return pt->vertex_from(v);
+}
+
+vertex_t dest_from(const typegraph_t *pt, edge_t e) { return pt->dest_from(e); }
+
 //------------------------------------------------------------------------------
 //
 // Typegraph public interface
@@ -115,20 +121,50 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
 
     struct_t &st = std::get<struct_t>(graph_[*vi].type);
 
-    int bfidx = 0;
     for (auto [ei, ei_end] = boost::out_edges(*vi, graph_); ei != ei_end;
-         ++ei, ++bfidx) {
+         ++ei) {
       vertex_t succ = boost::source(*ei, graph_);
       if ((graph_[succ].cat == category_t::SCALAR) &&
           (config_.rand_positive() % 100) < cfg::get(config_, TG::BFPROB)) {
-        st.bitfields_[bfidx] = cfg::get(config_, TG::BFSIZE);
+        auto bfsz = cfg::get(config_, TG::BFSIZE);
+        st.bitfields_.push_back(std::make_pair(succ, bfsz));
       }
     }
   }
 }
 
+vertex_iter_t typegraph_t::begin() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return vi;
+}
+
+vertex_iter_t typegraph_t::end() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return vi_end;
+}
+
+ct_iterator_t typegraph_t::begin_types() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return ct_iterator_t(this, vi);
+}
+
+ct_iterator_t typegraph_t::end_types() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return ct_iterator_t(this, vi_end);
+}
+
+child_iterator_t typegraph_t::begin_childs(vertex_t v) const {
+  auto [ei, ei_end] = boost::out_edges(v, graph_);
+  return child_iterator_t(this, ei);
+}
+
+child_iterator_t typegraph_t::end_childs(vertex_t v) const {
+  auto [ei, ei_end] = boost::out_edges(v, graph_);
+  return child_iterator_t(this, ei_end);
+}
+
 // dump as dot file
-void typegraph_t::dump(std::ostream &os) {
+void typegraph_t::dump(std::ostream &os) const {
   boost::dynamic_properties dp;
   auto bundle = boost::get(boost::vertex_bundle, graph_);
   dp.property("node_id", boost::get(boost::vertex_index, graph_));
@@ -151,27 +187,20 @@ void typegraph_t::init_scalars() {
   scalars_.emplace_back("short", 16, false, true);
   scalars_.emplace_back("unsigned", 32, false, false);
   scalars_.emplace_back("int", 32, false, true);
+  scalars_.emplace_back("unsigned long", 32, false, false);
+  scalars_.emplace_back("long", 32, false, true);
   scalars_.emplace_back("unsigned long long", 64, false, false);
   scalars_.emplace_back("long long", 64, false, true);
-
-  // long types may make results unreproducible
-  if (cfg::get(config_, TG::LONGT)) {
-    scalars_.emplace_back("unsigned long", 32, false, false);
-    scalars_.emplace_back("long", 32, false, true);
-  }
-
-  // fp types requires special option
-  if (cfg::get(config_, TG::FPT)) {
-    scalars_.emplace_back("float", 32, true, false);
-    scalars_.emplace_back("double", 64, true, false);
-  }
+  scalars_.emplace_back("float", 32, true, true);
+  scalars_.emplace_back("double", 64, true, true);
 }
 
 // create exact scalar
 vertex_t typegraph_t::create_scalar() {
   auto sv = boost::add_vertex(graph_);
   leafs_.insert(sv);
-  int scid = config_.rand_positive() % scalars_.size();
+  int scid = cfg::get(config_, TG::TYPEPROB);
+  // config_.rand_positive() % scalars_.size();
 
   graph_[sv].id = sv;
   graph_[sv].cat = category_t::SCALAR;
@@ -269,13 +298,14 @@ int typegraph_t::split_at(vertex_t vdesc, common_t cont) {
           graph_[vdesc].type = cont;
           for (int i = 0; i < nchilds; ++i)
             create_scalar_at(vdesc);
-
-          // by default all zeros, to be assigned later
-          std::get<struct_t>(graph_[vdesc].type).bitfields_.resize(nchilds);
         } else
           throw std::runtime_error("Only structs and arrays are welcome");
       },
       cont);
+
+  // +1 more top level type for each split
+  vertex_t newsc = create_scalar();
+  leafs_.insert(newsc);
 
   return 1;
 }
