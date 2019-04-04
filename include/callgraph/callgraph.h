@@ -46,6 +46,7 @@ using cgraph_t =
 using vertex_iter_t = boost::graph_traits<cgraph_t>::vertex_iterator;
 using edge_iter_t = boost::graph_traits<cgraph_t>::edge_iterator;
 using vertex_t = boost::graph_traits<cgraph_t>::vertex_descriptor;
+using edge_t = boost::graph_traits<cgraph_t>::edge_descriptor;
 
 class callgraph_t {
   cfg::config config_;
@@ -54,16 +55,22 @@ class callgraph_t {
   std::set<vertex_t> non_leafs_;
   std::set<vertex_t> leafs_;
 
+  // public interface
 public:
   callgraph_t(cfg::config &&, std::shared_ptr<tg::typegraph_t>);
 
   // following interface to implement:
+
+  // begin/end for descriptor iterator
   // begin/end for function iterator
-  // number of functions
-  // function by number
-  // callees or function with call type
-  // callers or function with call type
-  void dump(std::ostream &os);
+  // function by descriptor
+  // callees of function (by call type)
+  // callers of function (by call type)
+  void dump(std::ostream &os) const;
+
+  // construction helpers
+private:
+  void connect_components();
 };
 
 } // namespace cg

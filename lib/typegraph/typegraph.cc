@@ -6,7 +6,7 @@
 // 1. initialize scalars
 // 2. seed graph (graph is isolated vertices here)
 // 3. do splits (graph is tree here)
-// 4. probable unification to make tree into DAG
+// 4. unification to make tree into DAG
 // 5. create pointers to make DAG into general graph
 // 6. assign bitfields
 //
@@ -27,9 +27,13 @@
 
 #include <iostream>
 #include <memory>
+#include <queue>
 
 #include "typegraph.h"
 #include <boost/graph/graphviz.hpp>
+#include <boost/numeric/ublas/matrix_sparse.hpp>
+
+namespace ublas = boost::numeric::ublas;
 
 namespace tg {
 
@@ -80,7 +84,7 @@ vertex_t dest_from(const typegraph_t *pt, edge_t e) { return pt->dest_from(e); }
 
 constexpr int MAX_SPLIT_ATTEMPTS = 10;
 
-// ctor is the only modifying function in typegraph
+// ctor is the only public modifying function in typegraph
 // see construction sequence description in head comment
 typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   if (!config_.quiet())
@@ -109,21 +113,19 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   }
 
   // unify to DAG
-  // TODO: later
+  unify_subscalars(struct_vs_);
+  unify_subscalars(array_vs_);
 
   // add pointer backedges
-  // TODO: later
+  for (auto v : pointer_vs_)
+    process_pointer(v);
 
   // create bitfields
-  for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi) {
-    if (graph_[*vi].cat != category_t::STRUCT)
-      continue;
+  for (auto v : struct_vs_) {
+    struct_t &st = std::get<struct_t>(graph_[v].type);
 
-    struct_t &st = std::get<struct_t>(graph_[*vi].type);
-
-    for (auto [ei, ei_end] = boost::out_edges(*vi, graph_); ei != ei_end;
-         ++ei) {
-      vertex_t succ = boost::source(*ei, graph_);
+    for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
+      vertex_t succ = boost::target(*ei, graph_);
       if ((graph_[succ].cat == category_t::SCALAR) &&
           (config_.rand_positive() % 100) < cfg::get(config_, TG::BFPROB)) {
         auto bfsz = cfg::get(config_, TG::BFSIZE);
@@ -193,18 +195,41 @@ void typegraph_t::init_scalars() {
   scalars_.emplace_back("long long", 64, false, true);
   scalars_.emplace_back("float", 32, true, true);
   scalars_.emplace_back("double", 64, true, true);
+
+  // we shall have probability function size equal to this initialization
+  size_t psize = cfg::prob_size(config_, TG::TYPEPROB);
+  if (psize != scalars_.size()) {
+    std::ostringstream s;
+    s << "There are " << scalars_.size() << " scalar types but only " << psize
+      << " entries in discrete probability function";
+    throw std::runtime_error(s.str());
+  }
 }
 
 // create exact scalar
 vertex_t typegraph_t::create_scalar() {
   auto sv = boost::add_vertex(graph_);
-  leafs_.insert(sv);
-  int scid = cfg::get(config_, TG::TYPEPROB);
-  // config_.rand_positive() % scalars_.size();
-
   graph_[sv].id = sv;
-  graph_[sv].cat = category_t::SCALAR;
-  graph_[sv].type.emplace<scalar_t>(&scalars_[scid]);
+
+  int nscal = cfg::get(config_, TG::SCALTYPE);
+
+  switch (nscal) {
+  case TGS_POINTER:
+    graph_[sv].cat = category_t::POINTER;
+    graph_[sv].type.emplace<pointer_t>();
+    pointer_vs_.insert(sv);
+    break;
+  case TGS_SCALAR: {
+    int scid = cfg::get(config_, TG::TYPEPROB);
+    graph_[sv].cat = category_t::SCALAR;
+    graph_[sv].type.emplace<scalar_t>(&scalars_[scid]);
+    leaf_vs_.insert(sv);
+    break;
+  }
+  default:
+    throw std::runtime_error("Unknown scalar");
+  }
+
   return sv;
 }
 
@@ -227,11 +252,11 @@ std::optional<vertex_t> typegraph_t::get_pred(vertex_t v) {
 // perform split, return positive value on success, 0 on failure
 // see split sequence in head comment
 int typegraph_t::do_split() {
-  auto it = leafs_.begin();
-  int n = config_.rand_positive() % leafs_.size();
+  auto it = leaf_vs_.begin();
+  int n = config_.rand_positive() % leaf_vs_.size();
   std::advance(it, n);
   auto vdesc = *it;
-  assert(graph_[vdesc].cat = category_t::SCALAR);
+  assert(graph_[vdesc].cat == category_t::SCALAR);
 
   // generate container
   int ncont = cfg::get(config_, TG::CONTTYPE);
@@ -262,13 +287,15 @@ int typegraph_t::do_split() {
   case TGC_ARRAY: {
     int nitems = cfg::get(config_, TG::ARRSIZE);
     newcont = array_t{nitems};
+    array_vs_.insert(vdesc);
     break;
   }
   case TGC_STRUCT:
     newcont = struct_t{};
+    struct_vs_.insert(vdesc);
     break;
   default:
-    throw(std::runtime_error("Unknown container"));
+    throw std::runtime_error("Unknown container");
   }
 
   // technical split
@@ -276,7 +303,7 @@ int typegraph_t::do_split() {
 
   // remove if succ
   if (res > 0)
-    leafs_.erase(it);
+    leaf_vs_.erase(it);
 
   return res;
 }
@@ -304,10 +331,82 @@ int typegraph_t::split_at(vertex_t vdesc, common_t cont) {
       cont);
 
   // +1 more top level type for each split
-  vertex_t newsc = create_scalar();
-  leafs_.insert(newsc);
+  if (cfg::get(config_, TG::MORESCALARS) != 0) {
+    vertex_t newsc = create_scalar();
+    leaf_vs_.insert(newsc);
+  }
 
   return 1;
+}
+
+void typegraph_t::unify_subscalars(std::set<vertex_t> &vsset) {
+  // first unification: similar cells in structures
+  ublas::compressed_matrix<vertex_t> unif(ntypes(), scalars_.size());
+  for (auto v : vsset)
+    for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
+      vertex_t succ = boost::target(*ei, graph_);
+      if (graph_[succ].cat != category_t::SCALAR)
+        continue;
+      auto &&sc = std::get<scalar_t>(graph_[succ].type);
+
+      // index in scalars_ array
+      // we may do find or std::distance, but this is much simpler
+      int scidx = sc.sdesc - &scalars_[0];
+      unif(v, scidx) = succ;
+    }
+
+  // now iterate over matrix and unify
+  for (auto it1 = unif.begin2(); it1 != unif.end2(); ++it1) {
+    auto it2 = it1.begin();
+    if (it2 == it1.end() || std::next(it2) == it1.end())
+      continue;
+    vertex_t unifying_vertex = *it2;
+    for (++it2; it2 != it1.end(); ++it2) {
+      vertex_t v = *it2;
+      vertex_t vpred = it2.index1();
+      boost::remove_edge(vpred, v, graph_);
+      boost::add_edge(vpred, unifying_vertex, graph_);
+    }
+  }
+}
+
+void typegraph_t::process_pointer(vertex_t v) {
+  std::set<vertex_t> pointset;
+  std::queue<vertex_t> pointque;
+
+  // add all preds to que
+  for (auto [ei, ei_end] = boost::in_edges(v, graph_); ei != ei_end; ++ei) {
+    vertex_t parent = boost::source(*ei, graph_);
+    if (graph_[parent].cat != category_t::ARRAY)
+      pointque.push(parent);
+  }
+
+  // process que
+  while (!pointque.empty()) {
+    vertex_t cur = pointque.front();
+    pointque.pop();
+    pointset.insert(cur);
+    for (auto [esi, esi_end] = boost::out_edges(cur, graph_); esi != esi_end;
+         ++esi) {
+      vertex_t nxt = boost::target(*esi, graph_);
+      if (graph_[nxt].cat != category_t::POINTER)
+        pointque.push(nxt);
+    }
+  }
+
+  // if not lucky, add all scalars and all structs to queue
+  if (pointque.empty()) {
+    for (auto vl : leaf_vs_)
+      pointset.insert(vl);
+
+    for (auto vs : struct_vs_)
+      pointset.insert(vs);
+  }
+
+  auto it = pointset.begin();
+  int n = config_.rand_positive() % pointset.size();
+  std::advance(it, n);
+  boost::add_edge(v, *it, graph_);
 }
 
 } // namespace tg

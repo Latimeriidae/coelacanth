@@ -40,9 +40,10 @@ static map<int, optrecord> option_registry;
 static map<string, int> options_byname;
 static map<int, string> options_names;
 static map<int, string> option_descriptions;
+static map<string, int> probf_borders;
 
 void register_option(int global_id, string global_name, optrecord optrec,
-                     string description) {
+                     string description, int borderval = 0) {
   std::transform(global_name.begin(), global_name.end(), global_name.begin(),
                  ::tolower);
   boost::replace_all(global_name, "::", "-");
@@ -53,7 +54,7 @@ void register_option(int global_id, string global_name, optrecord optrec,
 
   // adding command-line option
   std::visit(
-      [global_name, description](auto &&arg) {
+      [global_name, description, borderval](auto &&arg) {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, cfg::single>)
           desc.add_options()(global_name.c_str(), po::value<int>(),
@@ -61,14 +62,16 @@ void register_option(int global_id, string global_name, optrecord optrec,
         else if constexpr (std::is_same_v<T, cfg::diap>) {
           string gnmax = global_name + "-max";
           string gnmin = global_name + "-min";
-          desc.add_options()(gnmax.c_str(), po::value<int>(),
-                             description.c_str());
-          desc.add_options()(gnmin.c_str(), po::value<int>(),
-                             description.c_str());
+          string descmax = description + " (max value)";
+          string descmin = description + " (min value)";
+          desc.add_options()(gnmax.c_str(), po::value<int>(), descmax.c_str());
+          desc.add_options()(gnmin.c_str(), po::value<int>(), descmin.c_str());
         } else if constexpr (std::is_same_v<T, cfg::probf>) {
+          string descprobf = description + " (array)";
           desc.add_options()(global_name.c_str(),
                              po::value<std::vector<int>>()->multitoken(),
-                             description.c_str());
+                             descprobf.c_str());
+          probf_borders[global_name] = borderval;
         } else
           static_assert(always_false<T>::value, "non-exhaustive visitor!");
       },
@@ -76,11 +79,11 @@ void register_option(int global_id, string global_name, optrecord optrec,
 }
 
 void register_options() {
-  desc.add_options()("help", "produce help message");
+  desc.add_options()("help", "Produce help message");
   desc.add_options()("seed", po::value<int>()->default_value(time(nullptr)),
-                     "seed for RNG");
+                     "Seed for RNG");
   desc.add_options()("quiet", po::bool_switch()->default_value(false),
-                     "enable file overwrite");
+                     "Suppress almost all messages");
 #define OPREGISTRY
 #include "options.h"
 #undef OPREGISTRY
@@ -101,29 +104,44 @@ config read_global_config(int argc, char **argv) {
 
   bool quiet = vm["quiet"].as<bool>();
   int seed = vm["seed"].as<int>();
-  ;
 
   if (!quiet) {
-    std::cout << "starting with seed = " << seed << std::endl;
+    std::cout << "Coelacanth info: run with --help for option list"
+              << std::endl;
+    std::cout << "Coelacanth info: starting with seed = " << seed << std::endl;
   }
 
   for (auto &r : option_registry) {
     string name = options_names[r.first];
-    string namemax = name + "_max";
-    if ((0 == vm.count(name.c_str())) && (0 == vm.count(namemax.c_str())))
+    string namemax = name + "-max";
+    string namemin = name + "-min";
+    if ((0 == vm.count(name.c_str())) && (0 == vm.count(namemax.c_str())) &&
+        (0 == vm.count(namemin.c_str())))
       continue;
+    if (vm.count(namemax.c_str()) != vm.count(namemin.c_str())) {
+      std::ostringstream s;
+      s << "Problems with " << name << ". You shall specify bot options "
+        << namemin << " and " << namemax << " or none of them" << std::endl;
+      throw std::runtime_error(s.str());
+    }
     std::visit(
-        [name](auto &arg) {
+        [name, namemax, namemin](auto &arg) {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, cfg::single>)
             arg.val = vm[name.c_str()].as<int>();
           else if constexpr (std::is_same_v<T, cfg::diap>) {
-            string namemax = name + "_max";
-            string namemin = name + "_min";
             arg.from = vm[namemin.c_str()].as<int>();
             arg.to = vm[namemax.c_str()].as<int>();
           } else if constexpr (std::is_same_v<T, cfg::probf>) {
             arg.probs = vm[name.c_str()].as<std::vector<int>>();
+            int nbords = probf_borders[name];
+            if (arg.probs.size() != size_t(nbords)) {
+              std::ostringstream s;
+              s << "Problems with " << name << ". There are "
+                << arg.probs.size() << " arguments but " << nbords
+                << " entries in discrete probability function";
+              throw std::runtime_error(s.str());
+            }
           } else
             static_assert(always_false<T>::value, "non-exhaustive visitor!");
         },
@@ -184,6 +202,14 @@ int config::get(int id) const {
       fit->second);
 
   return retval;
+}
+
+size_t config::prob_size(int id) const {
+  auto fit = cfg_.find(id);
+  if (fit == cfg_.end())
+    throw std::runtime_error("Config have no such value");
+  const cfg::probf &prob = std::get<cfg::probf>(fit->second);
+  return prob.probs.size();
 }
 
 void config::dump(std::ostream &os) const { os << "Programm config:\n"; }

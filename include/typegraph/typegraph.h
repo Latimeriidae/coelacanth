@@ -43,8 +43,16 @@ namespace tg {
 class typegraph_t {
   cfg::config config_;
   tgraph_t graph_;
-  std::set<vertex_t> leafs_;
   std::vector<scalar_desc_t> scalars_;
+
+  // support sets (for easy access)
+private:
+  std::set<vertex_t> struct_vs_;
+  std::set<vertex_t> array_vs_;
+  std::set<vertex_t> pointer_vs_;
+
+  // array to use in splits, consists of scalars only
+  std::set<vertex_t> leaf_vs_;
 
   // typegraph public interface
 public:
@@ -80,6 +88,8 @@ private:
   std::optional<vertex_t> get_pred(vertex_t v);
   int do_split();
   int split_at(vertex_t vdesc, common_t cont);
+  void unify_subscalars(std::set<vertex_t> &vsset);
+  void process_pointer(vertex_t v);
 };
 
 } // namespace tg

@@ -81,6 +81,7 @@ public:
   config(int seed, bool quiet, ormap_cit start, ormap_cit fin)
       : cfg_(start, fin), quiet_(quiet), mt_source(seed) {}
   int get(int id) const;
+  size_t prob_size(int id) const;
   bool quiet() const { return quiet_; }
   ormap_cit cbegin() const { return cfg_.cbegin(); }
   ormap_cit cend() const { return cfg_.cend(); }
@@ -92,6 +93,10 @@ public:
 
 template <typename T> int get(const config &cfg, T id) {
   return cfg.get(static_cast<int>(id));
+}
+
+template <typename T> size_t prob_size(const config &cfg, T id) {
+  return cfg.prob_size(static_cast<int>(id));
 }
 
 config read_global_config(int argc, char **argv);

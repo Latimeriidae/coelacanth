@@ -32,7 +32,7 @@ public:
     for (auto it = tg.begin(); it != tg.end(); ++it) {
       auto vtxid = *it;
       auto prop = tg.get_type(vtxid);
-      assert(prop.id == vtxid);
+      assert(prop.id == int(vtxid));
 
       // self is always accessible
       acc_(vtxid, vtxid) = compat_t::DIRECT;
@@ -70,6 +70,14 @@ public:
           else
             acc_(i, j) = compat_t::DIRECT;
         }
+
+#if 0
+    std::cout << "Reachability: " << std::endl;
+    for (auto it1 = acc_.begin1(); it1 != acc_.end1(); ++it1)
+      for (auto it2 = it1.begin(); it2 != it1.end(); ++it2)
+        std::cout << "(" << it2.index1() << "," << it2.index2()
+                  << ") = " << int(*it2) << std::endl;
+#endif
   }
 
   bool has_access(vertex_t from, vertex_t to) const {
