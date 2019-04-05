@@ -145,6 +145,9 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < nthreads; ++i)
     consumers[i].join();
+
+  if (!default_config.quiet())
+    std::cout << "Done" << std::endl;
 }
 
 void consumer_thread_func() {

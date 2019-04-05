@@ -31,12 +31,21 @@ namespace cg {
 enum class calltype_t : unsigned char { DIRECT, CONDITIONAL, INDIRECT };
 
 struct vertexprop_t {
-  int funcid, componentno, depth, nparms;
+  int funcid = -1, componentno = -1, indset = 0;
+  int rettype = -1;
+  int usesigned : 1;
+  int usefloat : 1;
+  int usecomplex : 1;
+  int usepointers : 1;
+  std::vector<int> argtypes;
   std::string get_name() const;
+  std::string get_color() const;
 };
 
 struct edgeprop_t {
-  calltype_t calltype;
+  calltype_t calltype = calltype_t::CONDITIONAL;
+  std::string get_style() const;
+  std::string get_color() const;
 };
 
 // type for callgraph
@@ -48,16 +57,21 @@ using edge_iter_t = boost::graph_traits<cgraph_t>::edge_iterator;
 using vertex_t = boost::graph_traits<cgraph_t>::vertex_descriptor;
 using edge_t = boost::graph_traits<cgraph_t>::edge_descriptor;
 
-class callgraph_t {
+class callgraph_t final {
   cfg::config config_;
   std::shared_ptr<tg::typegraph_t> tgraph_;
   cgraph_t graph_;
+
+  // construction support structures
+private:
   std::set<vertex_t> non_leafs_;
   std::set<vertex_t> leafs_;
+  std::vector<std::vector<vertex_t>> comps_;
+  std::vector<vertex_t> inds_;
 
   // public interface
 public:
-  callgraph_t(cfg::config &&, std::shared_ptr<tg::typegraph_t>);
+  explicit callgraph_t(cfg::config &&, std::shared_ptr<tg::typegraph_t>);
 
   // following interface to implement:
 
@@ -70,7 +84,14 @@ public:
 
   // construction helpers
 private:
+  void generate_random_graph(int nvertices, int nedgeset);
+  void process_leafs();
   void connect_components();
+  void add_self_loops();
+  void create_indcalls();
+  void decide_metastructure();
+  void assign_types();
+  void map_modules();
 };
 
 } // namespace cg

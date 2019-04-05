@@ -40,7 +40,7 @@
 
 namespace tg {
 
-class typegraph_t {
+class typegraph_t final {
   cfg::config config_;
   tgraph_t graph_;
   std::vector<scalar_desc_t> scalars_;
@@ -56,7 +56,7 @@ private:
 
   // typegraph public interface
 public:
-  typegraph_t(cfg::config &&);
+  explicit typegraph_t(cfg::config &&);
 
   vertex_iter_t begin() const;
   vertex_iter_t end() const;

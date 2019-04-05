@@ -36,10 +36,32 @@ enum class TG {
 };
 
 // callgraph level
-enum class CG { START = int(TG::MAX), MODULES, VERTICES, EDGES, ADDLEAFS, MAX };
+enum class CG {
+  START = int(TG::MAX),
+  MODULES,
+  VERTICES,
+  EDGESET,
+  ADDLEAFS,
+  SELFLOOP,
+  INDSETCNT,
+  ARTIFICIAL_CONNS,
+  MAX
+};
+
+// metastructure level
+enum class MS {
+  START = int(CG::MAX),
+  USEFLOAT,
+  USESIGNED,
+  USECOMPLEX,
+  USEPOINTERS,
+  SPLITS,
+  NVARS,
+  MAX
+};
 
 // varassign level
-enum class VA { START = int(CG::MAX), VARS, MAX };
+enum class VA { START = int(MS::MAX), VARS, MAX };
 
 // controlgraph level
 enum class CN { START = int(VA::MAX), MAX };
@@ -116,9 +138,27 @@ OPTSINGLE(
 
 // callgraph-level
 OPTDIAP(CG::MODULES, 2, 6, "Number of programm modules");
-OPTDIAP(CG::VERTICES, 10, 20, "Number of initial leaf and non-leaf functions");
-OPTDIAP(CG::EDGES, 20, 30, "Number of initial CG edges");
+OPTDIAP(CG::VERTICES, 15, 25, "Number of initial leaf and non-leaf functions");
+OPTDIAP(CG::EDGESET, 6, 11, "Probability (out of 100%) to set edge");
 OPTDIAP(CG::ADDLEAFS, 10, 15, "Number of additional leaf functions");
+OPTDIAP(CG::SELFLOOP, 6, 9, "Probability (out of 100%) to create self-loop");
+OPTDIAP(CG::INDSETCNT, 6, 9, "Number of vertices to allow indirect calls");
+OPTSINGLE(CG::ARTIFICIAL_CONNS, 5,
+          "Artificial connections in case of no zero in-degree edges");
+
+// function-wise metastructure
+OPTSINGLE(MS::USEFLOAT, 10,
+          "Probability of floating-point arithmetics usage per function");
+OPTSINGLE(MS::USESIGNED, 20,
+          "Probability of signed data types usage per function");
+OPTSINGLE(MS::USECOMPLEX, 60,
+          "Probability of complex data types usage per function");
+OPTSINGLE(MS::USEPOINTERS, 60, "Probability of pointers usage per function");
+OPTDIAP(
+    MS::SPLITS, 5, 90,
+    "Number of splits in (roughly: cyclomatic complexity of) every function");
+OPTDIAP(MS::NVARS, 5, 20,
+        "Local variables added pressure in functions (whatever it be)");
 
 #undef OPTPROBF
 #undef OPTDIAP
