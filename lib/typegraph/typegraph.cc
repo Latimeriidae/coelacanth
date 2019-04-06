@@ -165,6 +165,12 @@ child_iterator_t typegraph_t::end_childs(vertex_t v) const {
   return child_iterator_t(this, ei_end);
 }
 
+vertexprop_t typegraph_t::get_random_type() const {
+  cfg::config_rng cfrng(config_);
+  vertex_t v = boost::random_vertex(graph_, cfrng);
+  return graph_[v];
+}
+
 // dump as dot file
 void typegraph_t::dump(std::ostream &os) const {
   boost::dynamic_properties dp;

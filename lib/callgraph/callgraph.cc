@@ -11,6 +11,15 @@
 // 6. assign function and return types
 // 7. modules affinity
 //
+// assignment of types to functions rules:
+// - function can accept and return only full metastructure-according scalar
+// - for complex types only partial accordnance required
+//   * example: struct {unsigned x, float y} foo1() when foo1 is non-float
+//   *          in this case y member returns value-unitialized
+// - we are doing CG::TYPEATTEMPTS attempts to assign random type
+//   * then we are traversing type storage and assigning first suitable
+// - also return and argument type can not be array_t
+//
 //------------------------------------------------------------------------------
 //
 // This file is licensed after LGPL v3
@@ -33,6 +42,7 @@
 #include <boost/range/algorithm/copy.hpp>
 
 #include "callgraph.h"
+#include "funcmeta.h"
 #include "typegraph/typean.h"
 #include "typegraph/typegraph.h"
 
@@ -41,7 +51,18 @@ namespace cg {
 // label for dot dump of callgraph
 std::string vertexprop_t::get_name() const {
   std::ostringstream s;
-  s << "foo" << funcid;
+  if (rettype == -1)
+    s << "void";
+  else
+    s << "T" << rettype;
+
+  s << " foo" << funcid << "(";
+  for (auto ait = argtypes.begin(); ait != argtypes.end(); ++ait) {
+    if (ait != argtypes.begin())
+      s << ", ";
+    s << "T" << *ait;
+  }
+  s << ")";
   return s.str();
 }
 
@@ -62,21 +83,6 @@ std::string edgeprop_t::get_color() const {
     return "red";
   return "black";
 }
-
-//------------------------------------------------------------------------------
-//
-// Config adapter to make rng out of rng, hidden in cfg
-//
-//------------------------------------------------------------------------------
-
-struct config_rng {
-  using result_type = int;
-  cfg::config &cf_;
-  config_rng(cfg::config &cf) : cf_(cf) {}
-  result_type operator()() { return cf_.rand_positive(); }
-  int min() { return 0; }
-  int max() { return std::numeric_limits<int>::max(); }
-};
 
 //------------------------------------------------------------------------------
 //
@@ -194,7 +200,7 @@ void callgraph_t::generate_random_graph(int nvertices) {
   // highly unprobable case: no vertex have zero in-degree
   if (0 == nheads) {
     std::vector<vertex_t> conns;
-    config_rng cfrng(config_);
+    cfg::config_rng cfrng(config_);
     auto [vi, vi_end] = boost::vertices(graph_);
     int nconns = cfg::get(config_, CG::ARTIFICIAL_CONNS);
     std::sample(vi, vi_end, std::back_inserter(conns), nconns,
@@ -332,7 +338,7 @@ void callgraph_t::add_self_loops() {
 }
 
 void callgraph_t::create_indcalls() {
-  config_rng cfrng(config_);
+  cfg::config_rng cfrng(config_);
   int nindirect = cfg::get(config_, CG::INDSETCNT);
   if ((comps_.size() > 1) && (nindirect > 0))
     for (auto it = comps_.begin() + 1; it != comps_.end(); ++it)
@@ -361,12 +367,15 @@ void callgraph_t::create_indcalls() {
 }
 
 void callgraph_t::decide_metastructure() {
+  // for all indirect calls same metastructure
+  auto ind_metainfo = ms::random_meta(config_);
+
   for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi) {
     vertexprop_t &vpt = graph_[*vi];
-    vpt.usesigned = cfg::get(config_, MS::USESIGNED);
-    vpt.usefloat = cfg::get(config_, MS::USEFLOAT);
-    vpt.usecomplex = cfg::get(config_, MS::USECOMPLEX);
-    vpt.usepointers = cfg::get(config_, MS::USEPOINTERS);
+    if (vpt.indset)
+      vpt.metainfo = ind_metainfo;
+    else
+      vpt.metainfo = ms::random_meta(config_);
 #if 0
     std::cout << "For function " << *vi << " config is: " << vpt.usesigned
               << " " << vpt.usefloat << " " << vpt.usecomplex << " "
@@ -375,14 +384,118 @@ void callgraph_t::decide_metastructure() {
   }
 }
 
+int callgraph_t::pick_typeid(vertex_t v, bool allow_void) {
+  vertexprop_t &vp = graph_[v];
+  bool succ = false;
+  for (int nattempts = cfg::get(config_, CG::TYPEATTEMPTS); nattempts > 0;
+       --nattempts) {
+    auto randt = tgraph_->get_random_type();
+    if (ms::check_type(vp.metainfo, randt)) {
+      succ = true;
+      return randt.id;
+    }
+  }
+
+  // corner case: random type selection failed (this may eventually happen if
+  // metastructure is too restrictive)
+  if (!succ) {
+    for (auto tv = tgraph_->begin(), tve = tgraph_->end(); tv != tve; ++tv) {
+      auto randt = tgraph_->vertex_from(*tv);
+      if (ms::check_type(vp.metainfo, randt)) {
+        succ = true;
+        return randt.id;
+      }
+    }
+  }
+
+  if (!allow_void)
+    throw std::runtime_error("Can not find type in typestorage to conform");
+
+  return -1;
+}
+
+std::pair<int, std::vector<int>> callgraph_t::gen_params(vertex_t v) {
+  int rettype = pick_typeid(v, true);
+  int nargs = cfg::get(config_, CG::NARGS);
+  std::vector<int> args;
+  if (nargs > 0)
+    args.resize(nargs);
+  for (auto &at : args)
+    at = pick_typeid(v);
+  return make_pair(rettype, args);
+}
+
 void callgraph_t::assign_types() {
+  // for all indirect calls pre-generate
+  int indret = -1;
+  std::vector<int> indargs;
+  if (inds_.size() > 0)
+    std::tie(indret, indargs) = gen_params(inds_[0]);
+
+  // for others
   for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi) {
+    vertex_t v = *vi;
+    vertexprop_t &vp = graph_[v];
+    if (!vp.indset)
+      std::tie(vp.rettype, vp.argtypes) = gen_params(v);
+    else {
+      vp.rettype = indret;
+      vp.argtypes = indargs;
+    }
   }
 }
 
 void callgraph_t::map_modules() {}
 
 } // namespace cg
+
+//------------------------------------------------------------------------------
+//
+// Metastructure
+//
+//------------------------------------------------------------------------------
+
+namespace ms {
+
+metanode_t random_meta(const cfg::config &config) {
+  metanode_t ret;
+  ret.usesigned = cfg::get(config, MS::USESIGNED);
+  ret.usefloat = cfg::get(config, MS::USEFLOAT);
+  ret.usecomplex = cfg::get(config, MS::USECOMPLEX);
+  ret.usepointers = cfg::get(config, MS::USEPOINTERS);
+  return ret;
+}
+
+bool check_type(metanode_t m, tg::vertexprop_t vpt) {
+  switch (vpt.cat) {
+  case tg::category_t::SCALAR: {
+    tg::scalar_t s = std::get<tg::scalar_t>(vpt.type);
+    if (s.sdesc->is_float && !m.usefloat)
+      return false;
+    if (s.sdesc->is_signed && !m.usesigned)
+      return false;
+    break;
+  }
+  case tg::category_t::STRUCT:
+    if (!m.usecomplex)
+      return false;
+    break;
+  case tg::category_t::ARRAY:
+    if (!m.usecomplex)
+      return false;
+    break;
+  case tg::category_t::POINTER:
+    if (!m.usepointers)
+      return false;
+    break;
+  default:
+    throw std::runtime_error("Unknown cat");
+  };
+
+  return true;
+}
+
+} // namespace ms
 
 //------------------------------------------------------------------------------
 //
@@ -393,8 +506,13 @@ void callgraph_t::map_modules() {}
 std::shared_ptr<cg::callgraph_t>
 callgraph_create(int seed, const cfg::config &cf,
                  std::shared_ptr<tg::typegraph_t> sptg) {
-  cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
-  return std::make_shared<cg::callgraph_t>(std::move(newcf), sptg);
+  try {
+    cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
+    return std::make_shared<cg::callgraph_t>(std::move(newcf), sptg);
+  } catch (std::runtime_error &e) {
+    std::cerr << "Callgraph construction problem: " << e.what() << std::endl;
+    throw;
+  }
 }
 
 void callgraph_dump(std::shared_ptr<cg::callgraph_t> cg, std::ostream &os) {

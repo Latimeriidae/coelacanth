@@ -108,4 +108,19 @@ template <typename T> size_t prob_size(const config &cfg, T id) {
 
 config read_global_config(int argc, char **argv);
 
+//------------------------------------------------------------------------------
+//
+// Config adapter to make rng out of rng, hidden in cfg
+//
+//------------------------------------------------------------------------------
+
+struct config_rng {
+  using result_type = int;
+  cfg::config &cf_;
+  config_rng(const cfg::config &cf) : cf_(const_cast<cfg::config &>(cf)) {}
+  result_type operator()() { return cf_.rand_positive(); }
+  int min() { return 0; }
+  int max() { return std::numeric_limits<int>::max(); }
+};
+
 } // namespace cfg

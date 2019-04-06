@@ -45,6 +45,8 @@ enum class CG {
   SELFLOOP,
   INDSETCNT,
   ARTIFICIAL_CONNS,
+  TYPEATTEMPTS,
+  NARGS,
   MAX
 };
 
@@ -147,6 +149,8 @@ OPTPFLAG(CG::SELFLOOP, 6, 100, "Probability to create self-loop");
 OPTDIAP(CG::INDSETCNT, 6, 9, "Number of vertices to allow indirect calls");
 OPTSINGLE(CG::ARTIFICIAL_CONNS, 5,
           "Artificial connections in case of no zero in-degree edges");
+OPTSINGLE(CG::TYPEATTEMPTS, 10, "# of attempts to pick random type");
+OPTDIAP(CG::NARGS, 0, 5, "# of function arguments");
 
 // function-wise metastructure
 OPTPFLAG(MS::USEFLOAT, 10, 100,

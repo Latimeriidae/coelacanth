@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config/configs.h"
+#include "funcmeta.h"
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -31,12 +32,11 @@ namespace cg {
 enum class calltype_t : unsigned char { DIRECT, CONDITIONAL, INDIRECT };
 
 struct vertexprop_t {
-  int funcid = -1, componentno = -1, indset = 0;
+  int funcid = -1;
+  int componentno = -1;
+  int indset = 0;
   int rettype = -1;
-  unsigned usesigned : 1;
-  unsigned usefloat : 1;
-  unsigned usecomplex : 1;
-  unsigned usepointers : 1;
+  ms::metanode_t metainfo;
   std::vector<int> argtypes;
   std::string get_name() const;
   std::string get_color() const;
@@ -91,6 +91,8 @@ private:
   void create_indcalls();
   void decide_metastructure();
   void assign_types();
+  std::pair<int, std::vector<int>> gen_params(vertex_t v);
+  int pick_typeid(vertex_t v, bool allow_void = false);
   void map_modules();
 };
 
