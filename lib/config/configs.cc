@@ -10,8 +10,8 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
-#include <boost\algorithm\string\replace.hpp>
-#include <boost\program_options.hpp>
+#include <boost/algorithm/string/replace.hpp>
+#include <boost/program_options.hpp>
 #include <ctime>
 #include <map>
 #include <random>
