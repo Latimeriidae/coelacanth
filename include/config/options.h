@@ -107,6 +107,8 @@ enum {
   register_option(static_cast<int>(N), #N, diap{V1, V2}, T)
 #define OPTPROBF(N, V, M, T)                                                   \
   register_option(static_cast<int>(N), #N, probf{V}, T, M)
+#define OPTPFLAG(N, V, M, T)                                                   \
+  register_option(static_cast<int>(N), #N, pflag{V, M}, T, M)
 
 // programm-level
 OPTSINGLE(PG::CONSUMERS, 5, "Number of consumer threads");
@@ -130,7 +132,7 @@ OPTDIAP(TG::ARRSIZE, 2, 10, "Size of array");
 OPTSINGLE(TG::MAXARRPREDS, 3, "Maximum number of nested arrays");
 OPTSINGLE(TG::MAXSTRUCTPREDS, 3, "Maximum number of nested structures");
 OPTSINGLE(TG::MAXPREDS, 5, "Maximum number of nested types");
-OPTSINGLE(TG::BFPROB, 10, "Percentage of bitfield probability");
+OPTPFLAG(TG::BFPROB, 10, 100, "Probability of generating bitfield");
 OPTDIAP(TG::BFSIZE, 1, 31, "Bitfiled size diap");
 OPTSINGLE(
     TG::MORESCALARS, 0,
@@ -139,27 +141,29 @@ OPTSINGLE(
 // callgraph-level
 OPTDIAP(CG::MODULES, 2, 6, "Number of programm modules");
 OPTDIAP(CG::VERTICES, 15, 25, "Number of initial leaf and non-leaf functions");
-OPTDIAP(CG::EDGESET, 6, 11, "Probability (out of 100%) to set edge");
+OPTPFLAG(CG::EDGESET, 6, 100, "Probability to set edge");
 OPTDIAP(CG::ADDLEAFS, 10, 15, "Number of additional leaf functions");
-OPTDIAP(CG::SELFLOOP, 6, 9, "Probability (out of 100%) to create self-loop");
+OPTPFLAG(CG::SELFLOOP, 6, 100, "Probability to create self-loop");
 OPTDIAP(CG::INDSETCNT, 6, 9, "Number of vertices to allow indirect calls");
 OPTSINGLE(CG::ARTIFICIAL_CONNS, 5,
           "Artificial connections in case of no zero in-degree edges");
 
 // function-wise metastructure
-OPTSINGLE(MS::USEFLOAT, 10,
-          "Probability of floating-point arithmetics usage per function");
-OPTSINGLE(MS::USESIGNED, 20,
-          "Probability of signed data types usage per function");
-OPTSINGLE(MS::USECOMPLEX, 60,
-          "Probability of complex data types usage per function");
-OPTSINGLE(MS::USEPOINTERS, 60, "Probability of pointers usage per function");
+OPTPFLAG(MS::USEFLOAT, 10, 100,
+         "Probability of floating-point arithmetics usage per function");
+OPTPFLAG(MS::USESIGNED, 20, 100,
+         "Probability of signed data types usage per function");
+OPTPFLAG(MS::USECOMPLEX, 60, 100,
+         "Probability of complex data types usage per function");
+OPTPFLAG(MS::USEPOINTERS, 60, 100,
+         "Probability of pointers usage per function");
 OPTDIAP(
     MS::SPLITS, 5, 90,
     "Number of splits in (roughly: cyclomatic complexity of) every function");
 OPTDIAP(MS::NVARS, 5, 20,
         "Local variables added pressure in functions (whatever it be)");
 
+#undef OPTPFLAG
 #undef OPTPROBF
 #undef OPTDIAP
 #undef OPTSINGLE

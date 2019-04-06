@@ -50,12 +50,19 @@ using probf_t = std::vector<int>;
 using probf_it = std::vector<int>::iterator;
 using probf_cit = std::vector<int>::const_iterator;
 
+// option as probability function
 struct probf {
   probf_t probs;
 };
 
+// option that equals to 0 or 1 depending of probability (m out of n chances)
+struct pflag {
+  int prob;
+  int total;
+};
+
 // option record is variant out of all option types
-using optrecord = std::variant<single, diap, probf>;
+using optrecord = std::variant<single, diap, probf, pflag>;
 
 } // namespace cfg
 

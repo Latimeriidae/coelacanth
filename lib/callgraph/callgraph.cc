@@ -108,8 +108,7 @@ callgraph_t::callgraph_t(cfg::config &&cf,
 
   // generate random graph
   int nvertices = cfg::get(config_, CG::VERTICES);
-  int nedgeset = cfg::get(config_, CG::EDGESET);
-  generate_random_graph(nvertices, nedgeset);
+  generate_random_graph(nvertices);
 
   // partition to leafs and non-leafs and add more leafs
   process_leafs();
@@ -165,7 +164,7 @@ void callgraph_t::dump(std::ostream &os) const {
 // I tried boost::generate_random_graph
 // I also tried boost::erdos_renyi_iterator
 // none served well enough, so fall back to custom method
-void callgraph_t::generate_random_graph(int nvertices, int nedgeset) {
+void callgraph_t::generate_random_graph(int nvertices) {
   for (int i = 0; i < nvertices; ++i) {
     auto v = boost::add_vertex(graph_);
     graph_[v].funcid = v;
@@ -179,7 +178,7 @@ void callgraph_t::generate_random_graph(int nvertices, int nedgeset) {
   // we do not want to allow self-loops on this stage
   for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi)
     for (auto [vi2, vi2_end] = boost::vertices(graph_); vi2 != vi2_end; ++vi2)
-      if ((vi != vi2) && ((config_.rand_positive() % 100) < nedgeset))
+      if ((vi != vi2) && cfg::get(config_, CG::EDGESET))
         boost::add_edge(*vi, *vi2, graph_);
 
   // TODO:
@@ -323,9 +322,8 @@ void callgraph_t::connect_components() {
 void callgraph_t::add_self_loops() {
   int main_head = comps_[0][0];
 
-  int nselfloop = cfg::get(config_, CG::SELFLOOP);
   for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi)
-    if ((config_.rand_positive() % 100) < nselfloop)
+    if (cfg::get(config_, CG::SELFLOOP))
       boost::add_edge(*vi, *vi, graph_);
 
   // setting direct calls
@@ -365,19 +363,15 @@ void callgraph_t::create_indcalls() {
 void callgraph_t::decide_metastructure() {
   for (auto [vi, vi_end] = boost::vertices(graph_); vi != vi_end; ++vi) {
     vertexprop_t &vpt = graph_[*vi];
-    vpt.usesigned =
-        (config_.rand_positive() % 100) < cfg::get(config_, MS::USESIGNED) ? 1
-                                                                           : 0;
-    vpt.usefloat =
-        (config_.rand_positive() % 100) < cfg::get(config_, MS::USEFLOAT) ? 1
-                                                                          : 0;
-    vpt.usecomplex =
-        (config_.rand_positive() % 100) < cfg::get(config_, MS::USECOMPLEX) ? 1
-                                                                            : 0;
-    vpt.usepointers =
-        (config_.rand_positive() % 100) < cfg::get(config_, MS::USEPOINTERS)
-            ? 1
-            : 0;
+    vpt.usesigned = cfg::get(config_, MS::USESIGNED);
+    vpt.usefloat = cfg::get(config_, MS::USEFLOAT);
+    vpt.usecomplex = cfg::get(config_, MS::USECOMPLEX);
+    vpt.usepointers = cfg::get(config_, MS::USEPOINTERS);
+#if 0
+    std::cout << "For function " << *vi << " config is: " << vpt.usesigned
+              << " " << vpt.usefloat << " " << vpt.usecomplex << " "
+              << vpt.usepointers << std::endl;
+#endif
   }
 }
 

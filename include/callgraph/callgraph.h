@@ -33,10 +33,10 @@ enum class calltype_t : unsigned char { DIRECT, CONDITIONAL, INDIRECT };
 struct vertexprop_t {
   int funcid = -1, componentno = -1, indset = 0;
   int rettype = -1;
-  int usesigned : 1;
-  int usefloat : 1;
-  int usecomplex : 1;
-  int usepointers : 1;
+  unsigned usesigned : 1;
+  unsigned usefloat : 1;
+  unsigned usecomplex : 1;
+  unsigned usepointers : 1;
   std::vector<int> argtypes;
   std::string get_name() const;
   std::string get_color() const;
@@ -84,7 +84,7 @@ public:
 
   // construction helpers
 private:
-  void generate_random_graph(int nvertices, int nedgeset);
+  void generate_random_graph(int nvertices);
   void process_leafs();
   void connect_components();
   void add_self_loops();

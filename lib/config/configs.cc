@@ -72,6 +72,10 @@ void register_option(int global_id, string global_name, optrecord optrec,
                              po::value<std::vector<int>>()->multitoken(),
                              descprobf.c_str());
           probf_borders[global_name] = borderval;
+        } else if constexpr (std::is_same_v<T, cfg::pflag>) {
+          desc.add_options()(global_name.c_str(), po::value<int>(),
+                             description.c_str());
+          probf_borders[global_name] = borderval;
         } else
           static_assert(always_false<T>::value, "non-exhaustive visitor!");
       },
@@ -120,7 +124,7 @@ config read_global_config(int argc, char **argv) {
       continue;
     if (vm.count(namemax.c_str()) != vm.count(namemin.c_str())) {
       std::ostringstream s;
-      s << "Problems with " << name << ". You shall specify bot options "
+      s << "Problems with " << name << ". You shall specify both options "
         << namemin << " and " << namemax << " or none of them" << std::endl;
       throw std::runtime_error(s.str());
     }
@@ -132,6 +136,9 @@ config read_global_config(int argc, char **argv) {
           else if constexpr (std::is_same_v<T, cfg::diap>) {
             arg.from = vm[namemin.c_str()].as<int>();
             arg.to = vm[namemax.c_str()].as<int>();
+          } else if constexpr (std::is_same_v<T, cfg::pflag>) {
+            arg.prob = vm[name.c_str()].as<int>();
+            arg.total = probf_borders[name];
           } else if constexpr (std::is_same_v<T, cfg::probf>) {
             arg.probs = vm[name.c_str()].as<std::vector<int>>();
             int nbords = probf_borders[name];
@@ -194,6 +201,8 @@ int config::get(int id) const {
           return arg.val;
         else if constexpr (std::is_same_v<T, cfg::diap>)
           return rand_from(arg.from, arg.to);
+        else if constexpr (std::is_same_v<T, cfg::pflag>)
+          return (rand_from(0, arg.total) < arg.prob) ? 1 : 0;
         else if constexpr (std::is_same_v<T, cfg::probf>)
           return from_probf(arg.probs.begin(), arg.probs.end());
         else

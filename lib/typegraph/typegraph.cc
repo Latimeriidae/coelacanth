@@ -127,7 +127,7 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
     for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
       vertex_t succ = boost::target(*ei, graph_);
       if ((graph_[succ].cat == category_t::SCALAR) &&
-          (config_.rand_positive() % 100) < cfg::get(config_, TG::BFPROB)) {
+          cfg::get(config_, TG::BFPROB)) {
         auto bfsz = cfg::get(config_, TG::BFSIZE);
         st.bitfields_.push_back(std::make_pair(succ, bfsz));
       }
