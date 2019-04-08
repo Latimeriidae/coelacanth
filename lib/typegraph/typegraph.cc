@@ -37,25 +37,39 @@ namespace ublas = boost::numeric::ublas;
 
 namespace tg {
 
+const char *pseudos[] = {"T", "S", "A", "P"};
+constexpr int npseudos = (sizeof(pseudos) / sizeof(const char *));
+
+static_assert(static_cast<int>(category_t::CATMAX) == npseudos);
+
+// short name for callgraph dumps
+std::string vertexprop_t::get_short_name() const {
+  std::ostringstream s;
+  int catidx = static_cast<int>(cat);
+  assert(catidx < npseudos);
+  s << pseudos[catidx] << id;
+  return s.str();
+}
+
 // label for dot dump of typestorage
 std::string vertexprop_t::get_name() const {
   std::ostringstream s;
   switch (cat) {
   case category_t::SCALAR: {
     const scalar_desc_t *sc = std::get<scalar_t>(type).sdesc;
-    s << "T" << id << " = " << sc->name;
+    s << get_short_name() << " = " << sc->name;
     break;
   }
   case category_t::STRUCT:
-    s << "S" << id;
+    s << get_short_name();
     break;
   case category_t::ARRAY: {
     const auto &ar = std::get<array_t>(type);
-    s << "A" << id << " [" << ar.nitems << "]";
+    s << get_short_name() << " [" << ar.nitems << "]";
     break;
   }
   case category_t::POINTER:
-    s << "P" << id;
+    s << get_short_name();
     break;
   default:
     throw std::runtime_error("Unknown category");

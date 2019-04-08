@@ -49,18 +49,19 @@
 namespace cg {
 
 // label for dot dump of callgraph
-std::string vertexprop_t::get_name() const {
+std::string
+vertexprop_t::get_name(std::shared_ptr<tg::typegraph_t> tgraph) const {
   std::ostringstream s;
   if (rettype == -1)
     s << "void";
   else
-    s << "T" << rettype;
+    s << tgraph->vertex_from(rettype).get_short_name();
 
   s << " foo" << funcid << "(";
   for (auto ait = argtypes.begin(); ait != argtypes.end(); ++ait) {
     if (ait != argtypes.begin())
       s << ", ";
-    s << "T" << *ait;
+    s << tgraph->vertex_from(*ait).get_short_name();
   }
   s << ")";
   return s.str();
@@ -72,17 +73,23 @@ std::string vertexprop_t::get_color() const {
   return "black";
 }
 
-std::string edgeprop_t::get_style() const {
-  if (calltype == calltype_t::INDIRECT)
-    return "dashed";
-  return "solid";
-}
+std::string edgeprop_t::get_style() const { return "solid"; }
 
 std::string edgeprop_t::get_color() const {
   if (calltype == calltype_t::DIRECT)
     return "red";
   return "black";
 }
+
+vertexprop_t vertex_from(const callgraph_t *pcg, vertex_t v) {
+  return pcg->vertex_from(v);
+}
+
+vertex_t dest_from(const callgraph_t *pcg, edge_t e) {
+  return pcg->dest_from(e);
+}
+
+vertex_t src_from(const callgraph_t *pcg, edge_t e) { return pcg->src_from(e); }
 
 //------------------------------------------------------------------------------
 //
@@ -142,13 +149,49 @@ callgraph_t::callgraph_t(cfg::config &&cf,
   map_modules();
 }
 
+vertex_iter_t callgraph_t::begin() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return vi;
+}
+
+vertex_iter_t callgraph_t::end() const {
+  auto [vi, vi_end] = boost::vertices(graph_);
+  return vi;
+}
+
+callee_iterator_t callgraph_t::callees_begin(vertex_t v,
+                                             calltype_t mask) const {
+  auto [ei, ei_end] = boost::out_edges(v, graph_);
+  return callee_iterator_t(this, ei, mask);
+}
+
+callee_iterator_t callgraph_t::callees_end(vertex_t v, calltype_t mask) const {
+  auto [ei, ei_end] = boost::out_edges(v, graph_);
+  return callee_iterator_t(this, ei_end, mask);
+}
+
+caller_iterator_t callgraph_t::callers_begin(vertex_t v,
+                                             calltype_t mask) const {
+  auto [ei, ei_end] = boost::in_edges(v, graph_);
+  return caller_iterator_t(this, ei, mask);
+}
+
+caller_iterator_t callgraph_t::callers_end(vertex_t v, calltype_t mask) const {
+  auto [ei, ei_end] = boost::in_edges(v, graph_);
+  return caller_iterator_t(this, ei_end, mask);
+}
+
 // dump as dot file
 void callgraph_t::dump(std::ostream &os) const {
   boost::dynamic_properties dp;
   auto vbundle = boost::get(boost::vertex_bundle, graph_);
   dp.property("node_id", boost::get(boost::vertex_index, graph_));
-  dp.property("label", boost::make_transform_value_property_map(
-                           std::mem_fn(&vertexprop_t::get_name), vbundle));
+
+  // std::mem_fn(&vertexprop_t::get_name)
+  auto cg_name = [this](vertexprop_t v) { return v.get_name(tgraph_); };
+
+  dp.property("label",
+              boost::make_transform_value_property_map(cg_name, vbundle));
   dp.property("color", boost::make_transform_value_property_map(
                            std::mem_fn(&vertexprop_t::get_color), vbundle));
 
@@ -384,12 +427,14 @@ void callgraph_t::decide_metastructure() {
   }
 }
 
-int callgraph_t::pick_typeid(vertex_t v, bool allow_void) {
+int callgraph_t::pick_typeid(vertex_t v, bool allow_void, bool ret_type) {
   vertexprop_t &vp = graph_[v];
   bool succ = false;
   for (int nattempts = cfg::get(config_, CG::TYPEATTEMPTS); nattempts > 0;
        --nattempts) {
     auto randt = tgraph_->get_random_type();
+    if ((randt.cat == tg::category_t::ARRAY) && ret_type)
+      continue;
     if (ms::check_type(vp.metainfo, randt)) {
       succ = true;
       return randt.id;
@@ -401,6 +446,8 @@ int callgraph_t::pick_typeid(vertex_t v, bool allow_void) {
   if (!succ) {
     for (auto tv = tgraph_->begin(), tve = tgraph_->end(); tv != tve; ++tv) {
       auto randt = tgraph_->vertex_from(*tv);
+      if ((randt.cat == tg::category_t::ARRAY) && ret_type)
+        continue;
       if (ms::check_type(vp.metainfo, randt)) {
         succ = true;
         return randt.id;
@@ -415,7 +462,7 @@ int callgraph_t::pick_typeid(vertex_t v, bool allow_void) {
 }
 
 std::pair<int, std::vector<int>> callgraph_t::gen_params(vertex_t v) {
-  int rettype = pick_typeid(v, true);
+  int rettype = pick_typeid(v, true, true);
   int nargs = cfg::get(config_, CG::NARGS);
   std::vector<int> args;
   if (nargs > 0)

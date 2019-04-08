@@ -24,7 +24,13 @@
 
 namespace tg {
 
-enum class category_t : unsigned char { SCALAR, STRUCT, ARRAY, POINTER };
+enum class category_t : unsigned char {
+  SCALAR = 0,
+  STRUCT,
+  ARRAY,
+  POINTER,
+  CATMAX
+};
 
 struct scalar_desc_t {
   std::string name;
@@ -59,6 +65,7 @@ struct vertexprop_t {
   int id;
   category_t cat;
   common_t type;
+  std::string get_short_name() const;
   std::string get_name() const;
 };
 

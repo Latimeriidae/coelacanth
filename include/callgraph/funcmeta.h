@@ -24,9 +24,9 @@ struct metanode_t {
 };
 
 // create random metainfo node
-metanode_t random_meta(const cfg::config& config);
+metanode_t random_meta(const cfg::config &config);
 
 // check if type conform to metastructure
 bool check_type(metanode_t m, tg::vertexprop_t vpt);
 
-}
+} // namespace ms

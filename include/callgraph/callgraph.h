@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "calliters.h"
+#include "calltypes.h"
 #include "config/configs.h"
 #include "funcmeta.h"
 
@@ -28,34 +30,6 @@ class typegraph_t;
 }
 
 namespace cg {
-
-enum class calltype_t : unsigned char { DIRECT, CONDITIONAL, INDIRECT };
-
-struct vertexprop_t {
-  int funcid = -1;
-  int componentno = -1;
-  int indset = 0;
-  int rettype = -1;
-  ms::metanode_t metainfo;
-  std::vector<int> argtypes;
-  std::string get_name() const;
-  std::string get_color() const;
-};
-
-struct edgeprop_t {
-  calltype_t calltype = calltype_t::CONDITIONAL;
-  std::string get_style() const;
-  std::string get_color() const;
-};
-
-// type for callgraph
-using cgraph_t =
-    boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-                          vertexprop_t, edgeprop_t>;
-using vertex_iter_t = boost::graph_traits<cgraph_t>::vertex_iterator;
-using edge_iter_t = boost::graph_traits<cgraph_t>::edge_iterator;
-using vertex_t = boost::graph_traits<cgraph_t>::vertex_descriptor;
-using edge_t = boost::graph_traits<cgraph_t>::edge_descriptor;
 
 class callgraph_t final {
   cfg::config config_;
@@ -73,13 +47,18 @@ private:
 public:
   explicit callgraph_t(cfg::config &&, std::shared_ptr<tg::typegraph_t>);
 
-  // following interface to implement:
+  vertex_iter_t begin() const;
+  vertex_iter_t end() const;
 
-  // begin/end for descriptor iterator
-  // begin/end for function iterator
-  // function by descriptor
-  // callees of function (by call type)
-  // callers of function (by call type)
+  callee_iterator_t callees_begin(vertex_t v, calltype_t mask) const;
+  callee_iterator_t callees_end(vertex_t v, calltype_t mask) const;
+  caller_iterator_t callers_begin(vertex_t v, calltype_t mask) const;
+  caller_iterator_t callers_end(vertex_t v, calltype_t mask) const;
+
+  vertexprop_t vertex_from(vertex_t v) const { return graph_[v]; }
+  vertex_t dest_from(edge_t e) const { return boost::target(e, graph_); }
+  vertex_t src_from(edge_t e) const { return boost::source(e, graph_); }
+
   void dump(std::ostream &os) const;
 
   // construction helpers
@@ -92,7 +71,7 @@ private:
   void decide_metastructure();
   void assign_types();
   std::pair<int, std::vector<int>> gen_params(vertex_t v);
-  int pick_typeid(vertex_t v, bool allow_void = false);
+  int pick_typeid(vertex_t v, bool allow_void = false, bool ret_type = false);
   void map_modules();
 };
 
