@@ -82,17 +82,11 @@ public:
 
 template <>
 nbr_iterator_t<outedge_iter_t>::value_type nbr_iterator_t<outedge_iter_t>::
-operator*() const {
-  auto v = dest_from(cgp_, *ei_);
-  return v;
-}
+operator*() const;
 
 template <>
 nbr_iterator_t<inedge_iter_t>::value_type nbr_iterator_t<inedge_iter_t>::
-operator*() const {
-  auto v = src_from(cgp_, *ei_);
-  return v;
-}
+operator*() const;
 
 using callee_iterator_t = nbr_iterator_t<outedge_iter_t>;
 using caller_iterator_t = nbr_iterator_t<inedge_iter_t>;

@@ -38,6 +38,7 @@
 
 std::queue<task_t> task_queue;
 std::mutex task_queue_mutex;
+std::mutex mut_dbgs;
 
 void consumer_thread_func();
 
@@ -99,12 +100,7 @@ int main(int argc, char **argv) {
   int nlocs = cfg::get(default_config, PG::LOCS);
   int narith = cfg::get(default_config, PG::ARITH);
 
-  // put varassign tasks
-  for (int r_var = 0; r_var < nvar; ++r_var) {
-    // TODO: put task to queue
-  }
-
-  // now we need callgraph to start creating controlgraphs
+  // now we need callgraph to start creating varassigns
   auto cg = callgraph_fut.get();
 
   {
@@ -112,9 +108,25 @@ int main(int argc, char **argv) {
     callgraph_dump(cg, of);
   }
 
+  using va_fut_t = decltype(
+      create_task<va_task_type>(varassign_create, 0, default_config, tg, cg)
+          .second);
+  std::vector<va_fut_t> vafuts;
+
+  // put varassign tasks
   for (int r_var = 0; r_var < nvar; ++r_var) {
-    // now we need #r_var's varassign to start creating controlgraphs
-    // TODO: future.get
+    int vaseed = default_config.rand_positive();
+    auto &&[vassign_task, vassign_fut] = create_task<va_task_type>(
+        varassign_create, vaseed, default_config, tg, cg);
+    {
+      std::lock_guard<std::mutex> lk{task_queue_mutex};
+      task_queue.push(std::move(vassign_task));
+    }
+    vafuts.emplace_back(std::move(vassign_fut));
+  }
+
+  for (int r_var = 0; r_var < nvar; ++r_var) {
+    auto va = vafuts[r_var].get();
 
     // put controlgraph tasks
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
