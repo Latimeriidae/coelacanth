@@ -104,6 +104,7 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   if (!config_.quiet())
     std::cout << "Creating typegraph" << std::endl;
 
+  // initialize scalar classes
   init_scalars();
 
   // seed graph to be isolated scalar nodes
@@ -112,19 +113,7 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
     create_scalar();
 
   // split graph to forest
-  int nsplits = cfg::get(config_, TG::SPLITS);
-  for (int i = 0; i < nsplits; ++i) {
-    int sres = 0, sres_watchdog = 0;
-    while (!sres) {
-      sres_watchdog += 1;
-      if (sres_watchdog > MAX_SPLIT_ATTEMPTS) {
-        std::cerr << "Typegraph warning: to many split attempts in vain"
-                  << std::endl;
-        break;
-      }
-      sres = do_split();
-    }
-  }
+  perform_splits();
 
   // unify to DAG
   unify_subscalars(struct_vs_);
@@ -134,19 +123,12 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   for (auto v : pointer_vs_)
     process_pointer(v);
 
-  // create bitfields
-  for (auto v : struct_vs_) {
-    struct_t &st = std::get<struct_t>(graph_[v].type);
+  // create structure bitfields
+  create_bitfields();
 
-    for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
-      vertex_t succ = boost::target(*ei, graph_);
-      if ((graph_[succ].cat == category_t::SCALAR) &&
-          cfg::get(config_, TG::BFPROB)) {
-        auto bfsz = cfg::get(config_, TG::BFSIZE);
-        st.bitfields_.push_back(std::make_pair(succ, bfsz));
-      }
-    }
-  }
+  // choose index-like and perm-like types
+  // create if none
+  choose_perms_idxs();
 }
 
 vertex_iter_t typegraph_t::begin() const {
@@ -179,13 +161,6 @@ child_iterator_t typegraph_t::end_childs(vertex_t v) const {
   return child_iterator_t(this, ei_end);
 }
 
-vertexprop_t typegraph_t::get_random_type() const {
-  cfg::config_rng cfrng(config_);
-  vertex_t v = boost::random_vertex(graph_, cfrng);
-  return graph_[v];
-}
-
-// dump as dot file
 void typegraph_t::dump(std::ostream &os) const {
   boost::dynamic_properties dp;
   auto bundle = boost::get(boost::vertex_bundle, graph_);
@@ -193,6 +168,50 @@ void typegraph_t::dump(std::ostream &os) const {
   dp.property("label", boost::make_transform_value_property_map(
                            std::mem_fn(&vertexprop_t::get_name), bundle));
   boost::write_graphviz_dp(os, graph_, dp);
+}
+
+//------------------------------------------------------------------------------
+//
+// Random getters public interface
+//
+//------------------------------------------------------------------------------
+
+vertexprop_t typegraph_t::get_random_type() const {
+  cfg::config_rng cfrng(config_);
+  vertex_t v = boost::random_vertex(graph_, cfrng);
+  return graph_[v];
+}
+
+vertexprop_t typegraph_t::get_random_index_type() const {
+  assert(idx_vs_.size() > 0);
+  int idx = config_.rand_positive() % idx_vs_.size();
+  auto it = idx_vs_.begin();
+  std::advance(it, idx);
+  vertex_t v = *it;
+  return graph_[v];
+}
+
+vertexprop_t typegraph_t::get_random_perm_type(int nelems) const {
+  assert(nelems > 0);
+  assert(perm_vs_.size() >= size_t(nelems));
+  int idx = config_.rand_positive() % perm_vs_[nelems - 1].size();
+  vertex_t v = perm_vs_[nelems - 1][idx];
+  return graph_[v];
+}
+
+//------------------------------------------------------------------------------
+//
+// Random getters public interface
+//
+//------------------------------------------------------------------------------
+
+vertexprop_t typegraph_t::get_pointee(vertex_t v) const {
+  auto ci = begin_childs(v);
+  assert(ci != end_childs(v));
+  auto pointee_type = graph_[(*ci).first];
+  ++ci;
+  assert(ci == end_childs(v));
+  return pointee_type;
 }
 
 //------------------------------------------------------------------------------
@@ -229,20 +248,16 @@ void typegraph_t::init_scalars() {
 // create exact scalar
 vertex_t typegraph_t::create_scalar() {
   auto sv = boost::add_vertex(graph_);
-  graph_[sv].id = sv;
-
   int nscal = cfg::get(config_, TG::SCALTYPE);
 
   switch (nscal) {
   case TGS_POINTER:
-    graph_[sv].cat = category_t::POINTER;
-    graph_[sv].type.emplace<pointer_t>();
+    graph_[sv] = create_vprop<pointer_t>(sv);
     pointer_vs_.insert(sv);
     break;
   case TGS_SCALAR: {
     int scid = cfg::get(config_, TG::TYPEPROB);
-    graph_[sv].cat = category_t::SCALAR;
-    graph_[sv].type.emplace<scalar_t>(&scalars_[scid]);
+    graph_[sv] = create_vprop<scalar_t>(sv, &scalars_[scid]);
     leaf_vs_.insert(sv);
     break;
   }
@@ -269,11 +284,28 @@ std::optional<vertex_t> typegraph_t::get_pred(vertex_t v) {
   return pred;
 }
 
+// split graph to forest
+void typegraph_t::perform_splits() {
+  int nsplits = cfg::get(config_, TG::SPLITS);
+  for (int i = 0; i < nsplits; ++i) {
+    int sres = 0, sres_watchdog = 0;
+    while (!sres) {
+      sres_watchdog += 1;
+      if (sres_watchdog > MAX_SPLIT_ATTEMPTS) {
+        std::cerr << "Typegraph warning: to many split attempts in vain"
+                  << std::endl;
+        break;
+      }
+      sres = do_split();
+    }
+  }
+}
+
 // perform split, return positive value on success, 0 on failure
 // see split sequence in head comment
 int typegraph_t::do_split() {
-  auto it = leaf_vs_.begin();
   int n = config_.rand_positive() % leaf_vs_.size();
+  auto it = leaf_vs_.begin();
   std::advance(it, n);
   auto vdesc = *it;
   assert(graph_[vdesc].cat == category_t::SCALAR);
@@ -306,12 +338,12 @@ int typegraph_t::do_split() {
   switch (ncont) {
   case TGC_ARRAY: {
     int nitems = cfg::get(config_, TG::ARRSIZE);
-    newcont = array_t{nitems};
+    graph_[vdesc] = create_vprop<array_t>(vdesc, nitems);
     array_vs_.insert(vdesc);
     break;
   }
   case TGC_STRUCT:
-    newcont = struct_t{};
+    graph_[vdesc] = create_vprop<struct_t>(vdesc);
     struct_vs_.insert(vdesc);
     break;
   default:
@@ -319,7 +351,7 @@ int typegraph_t::do_split() {
   }
 
   // technical split
-  int res = split_at(vdesc, newcont);
+  int res = split_at(vdesc);
 
   // remove if succ
   if (res > 0)
@@ -331,24 +363,20 @@ int typegraph_t::do_split() {
 // split consists of some logic for each container
 // like adding new childs, new siblings, etc
 // all this encapsulated in this function
-int typegraph_t::split_at(vertex_t vdesc, common_t cont) {
-  std::visit(
-      [this, vdesc, cont](auto &&arg) mutable {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, array_t>) {
-          graph_[vdesc].cat = category_t::ARRAY;
-          graph_[vdesc].type = cont;
-          create_scalar_at(vdesc);
-        } else if constexpr (std::is_same_v<T, struct_t>) {
-          int nchilds = cfg::get(config_, TG::NFIELDS);
-          graph_[vdesc].cat = category_t::STRUCT;
-          graph_[vdesc].type = cont;
-          for (int i = 0; i < nchilds; ++i)
-            create_scalar_at(vdesc);
-        } else
-          throw std::runtime_error("Only structs and arrays are welcome");
-      },
-      cont);
+int typegraph_t::split_at(vertex_t vdesc) {
+  switch (graph_[vdesc].cat) {
+  case category_t::ARRAY:
+    create_scalar_at(vdesc);
+    break;
+  case category_t::STRUCT: {
+    int nchilds = cfg::get(config_, TG::NFIELDS);
+    for (int i = 0; i < nchilds; ++i)
+      create_scalar_at(vdesc);
+    break;
+  }
+  default:
+    throw std::runtime_error("Only structs and arrays are welcome");
+  }
 
   // +1 more top level type for each split
   if (cfg::get(config_, TG::MORESCALARS) != 0) {
@@ -427,6 +455,74 @@ void typegraph_t::process_pointer(vertex_t v) {
   int n = config_.rand_positive() % pointset.size();
   std::advance(it, n);
   boost::add_edge(v, *it, graph_);
+}
+
+void typegraph_t::create_bitfields() {
+  for (auto v : struct_vs_) {
+    struct_t &st = std::get<struct_t>(graph_[v].type);
+
+    for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
+      vertex_t succ = boost::target(*ei, graph_);
+      if ((graph_[succ].cat == category_t::SCALAR) &&
+          cfg::get(config_, TG::BFPROB)) {
+        auto bfsz = cfg::get(config_, TG::BFSIZE);
+        st.bitfields_.push_back(std::make_pair(succ, bfsz));
+      }
+    }
+  }
+}
+
+void typegraph_t::choose_perms_idxs() {
+  for (auto lf : leaf_vs_) {
+    scalar_t &sdt = std::get<scalar_t>(graph_[lf].type);
+    if (!sdt.sdesc->is_float)
+      idx_vs_.insert(lf);
+  }
+
+  auto [szmin, szmax] = cfg::minmax(config_, TG::ARRSIZE);
+  perm_vs_.resize(szmax);
+
+  for (auto varr : array_vs_) {
+    array_t &adt = std::get<array_t>(graph_[varr].type);
+
+    auto [ei, ei_end] = boost::out_edges(varr, graph_);
+    assert(ei + 1 == ei_end);
+    vertex_t succ = boost::target(*ei, graph_);
+    if (graph_[succ].cat == category_t::SCALAR) {
+      scalar_t &sdt = std::get<scalar_t>(graph_[succ].type);
+      if (!sdt.sdesc->is_float)
+        perm_vs_[adt.nitems - 1].push_back(varr);
+    }
+  }
+
+  if (idx_vs_.empty()) {
+    auto scalit =
+        find_if(scalars_.begin(), scalars_.end(),
+                [](const scalar_desc_t &sd) { return (sd.name == "int"); });
+    if (scalit == scalars_.end())
+      throw std::runtime_error(
+          "You shall allow int type in order for indexes to work");
+
+    // adding scalar
+    auto sv = boost::add_vertex(graph_);
+    graph_[sv] = create_vprop<scalar_t>(sv, &*scalit);
+    leaf_vs_.insert(sv);
+    idx_vs_.insert(sv);
+  }
+
+  assert(!idx_vs_.empty());
+
+  // now we need to create all permutations up to max array index if they aren't
+  // exist
+  auto sv = *idx_vs_.begin();
+  for (int cur = szmin; cur != szmax; ++cur)
+    if (perm_vs_[cur - 1].empty()) {
+      auto sva = boost::add_vertex(graph_);
+      graph_[sva] = create_vprop<array_t>(sva, cur);
+      boost::add_edge(sva, sv, graph_);
+      perm_vs_[cur - 1].push_back(sva);
+      array_vs_.insert(sva);
+    }
 }
 
 } // namespace tg

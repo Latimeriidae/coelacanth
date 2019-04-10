@@ -24,7 +24,8 @@
 
 namespace tg {
 
-enum class category_t : unsigned char {
+enum class category_t {
+  ILLEGAL = -1,
   SCALAR = 0,
   STRUCT,
   ARRAY,
@@ -44,30 +45,47 @@ struct scalar_desc_t {
 
 struct scalar_t {
   const scalar_desc_t *sdesc;
+  static constexpr category_t cat = category_t::SCALAR;
   explicit scalar_t(const scalar_desc_t *desc = nullptr) : sdesc(desc) {}
 };
 
 struct struct_t {
+  static constexpr category_t cat = category_t::STRUCT;
   // first pair element is child id
   // second is bitfield size
   std::vector<std::pair<int, int>> bitfields_;
 };
 
 struct array_t {
+  static constexpr category_t cat = category_t::ARRAY;
   int nitems;
 };
 
-struct pointer_t {};
+struct pointer_t {
+  static constexpr category_t cat = category_t::POINTER;
+};
 
 using common_t = std::variant<scalar_t, struct_t, array_t, pointer_t>;
 
 struct vertexprop_t {
-  int id;
-  category_t cat;
+  int id = -1;
+  category_t cat = category_t::ILLEGAL;
   common_t type;
+  vertexprop_t() = default;
+  explicit vertexprop_t(int i, category_t c, common_t t)
+      : id(i), cat(c), type(t) {}
   std::string get_short_name() const;
   std::string get_name() const;
+  bool is_struct() const { return (cat == category_t::STRUCT); }
+  bool is_array() const { return (cat == category_t::ARRAY); }
+  bool is_pointer() const { return (cat == category_t::POINTER); }
+  bool is_complex() const { return is_struct() || is_array(); }
 };
+
+template <typename T, typename... Ts>
+vertexprop_t create_vprop(int id, Ts &&... args) {
+  return vertexprop_t{id, T::cat, T{std::forward<Ts>(args)...}};
+}
 
 std::ostream &operator<<(std::ostream &os, vertexprop_t v);
 

@@ -213,6 +213,14 @@ int config::get(int id) const {
   return retval;
 }
 
+std::pair<int, int> config::minmax(int id) const {
+  auto fit = cfg_.find(id);
+  if (fit == cfg_.end())
+    throw std::runtime_error("Config have no such value");
+  const cfg::diap &d = std::get<cfg::diap>(fit->second);
+  return std::make_pair(d.from, d.to);
+}
+
 size_t config::prob_size(int id) const {
   auto fit = cfg_.find(id);
   if (fit == cfg_.end())

@@ -448,32 +448,38 @@ void callgraph_t::decide_metastructure() {
   }
 }
 
+static inline bool accept_type(ms::metanode_t m, tg::vertexprop_t vpt,
+                               bool ret_type) {
+  // we do not want to return pointers
+  if (vpt.is_pointer() && ret_type)
+    return false;
+
+  // we do not want to return and accept arrays
+  if (vpt.is_array())
+    return false;
+
+  // check against metastructure before accept
+  if (!ms::check_type(m, vpt))
+    return false;
+
+  return true;
+}
+
 int callgraph_t::pick_typeid(vertex_t v, bool allow_void, bool ret_type) {
   vertexprop_t &vp = graph_[v];
-  bool succ = false;
   for (int nattempts = cfg::get(config_, CG::TYPEATTEMPTS); nattempts > 0;
        --nattempts) {
     auto randt = tgraph_->get_random_type();
-    if ((randt.cat == tg::category_t::ARRAY) && ret_type)
-      continue;
-    if (ms::check_type(vp.metainfo, randt)) {
-      succ = true;
+    if (accept_type(vp.metainfo, randt, ret_type))
       return randt.id;
-    }
   }
 
   // corner case: random type selection failed (this may eventually happen if
   // metastructure is too restrictive)
-  if (!succ) {
-    for (auto tv = tgraph_->begin(), tve = tgraph_->end(); tv != tve; ++tv) {
-      auto randt = tgraph_->vertex_from(*tv);
-      if ((randt.cat == tg::category_t::ARRAY) && ret_type)
-        continue;
-      if (ms::check_type(vp.metainfo, randt)) {
-        succ = true;
-        return randt.id;
-      }
-    }
+  for (auto tv = tgraph_->begin(), tve = tgraph_->end(); tv != tve; ++tv) {
+    auto randt = tgraph_->vertex_from(*tv);
+    if (accept_type(vp.metainfo, randt, ret_type))
+      return randt.id;
   }
 
   if (!allow_void)

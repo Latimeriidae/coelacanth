@@ -63,7 +63,15 @@ enum class MS {
 };
 
 // varassign level
-enum class VA { START = int(MS::MAX), VARS, MAX };
+enum class VA {
+  START = int(MS::MAX),
+  NVARS,
+  NGLOBALS,
+  NIDX,
+  USEPERM,
+  MAXPERM,
+  MAX
+};
 
 // controlgraph level
 enum class CN { START = int(VA::MAX), MAX };
@@ -166,6 +174,13 @@ OPTDIAP(
     "Number of splits in (roughly: cyclomatic complexity of) every function");
 OPTDIAP(MS::NVARS, 5, 20,
         "Local variables added pressure in functions (whatever it be)");
+
+// varassign level
+OPTSINGLE(VA::NVARS, 50, "Starting number of variables");
+OPTSINGLE(VA::NGLOBALS, 10, "Number of globals out of starting");
+OPTSINGLE(VA::NIDX, 10, "Number of free indexes");
+OPTPFLAG(VA::USEPERM, 10, 100, "Probability to add permutator to array");
+OPTSINGLE(VA::MAXPERM, 6, "Maximum number of index permutations");
 
 #undef OPTPFLAG
 #undef OPTPROBF

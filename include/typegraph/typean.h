@@ -31,7 +31,7 @@ public:
   type_analysis_t(const typegraph_t &tg) : acc_(tg.ntypes(), tg.ntypes()) {
     for (auto it = tg.begin(); it != tg.end(); ++it) {
       auto vtxid = *it;
-      auto prop = tg.get_type(vtxid);
+      auto prop = tg.vertex_from(vtxid);
       assert(prop.id == int(vtxid));
 
       // self is always accessible
@@ -39,12 +39,11 @@ public:
 
       // put all childs to be accessible
       for (auto ci = tg.begin_childs(vtxid); ci != tg.end_childs(vtxid); ++ci)
-        acc_(vtxid, (*ci).first) = (prop.cat == category_t::POINTER)
-                                       ? compat_t::INDIRECT
-                                       : compat_t::DIRECT;
+        acc_(vtxid, (*ci).first) =
+            prop.is_pointer() ? compat_t::INDIRECT : compat_t::DIRECT;
 
       // exclude bitfields if any
-      if (prop.cat == category_t::STRUCT) {
+      if (prop.is_struct()) {
         auto st = get<struct_t>(prop.type);
         for (auto bf : st.bitfields_)
           acc_(vtxid, bf.first) = compat_t::NONE;
