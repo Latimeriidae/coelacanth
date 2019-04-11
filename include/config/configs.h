@@ -113,6 +113,8 @@ template <typename T> size_t prob_size(const config &cfg, T id) {
 
 config read_global_config(int argc, char **argv);
 
+void postverify(const config &cf);
+
 //------------------------------------------------------------------------------
 //
 // Config adapter to make rng out of rng, hidden in cfg

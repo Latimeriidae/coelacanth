@@ -9,10 +9,12 @@
 //
 //------------------------------------------------------------------------------
 
-#include "varassign.h"
+#include <queue>
+
 #include "../dbgstream.h"
 #include "callgraph/callgraph.h"
 #include "typegraph/typegraph.h"
+#include "varassign.h"
 
 namespace va {
 
@@ -29,88 +31,27 @@ varassign_t::varassign_t(cfg::config &&cf,
   if (!config_.quiet())
     dbgs() << "Creating varassign\n";
 
-  // create variables
-  int nvars = cfg::get(config_, VA::NVARS);
-  vars_.resize(nvars);
+  // create global variables
+  int nvars = cfg::get(config_, VA::NGLOBALS);
   for (int vidx = 0; vidx != nvars; ++vidx) {
     auto vpt = tgraph_->get_random_type();
-    vars_[vidx].id = vidx;
-    vars_[vidx].type_id = vpt.id;
-  }
-
-  // choosing globals
-  int nglobs = cfg::get(config_, VA::NGLOBALS);
-  // TODO: this restriction shall be in option processing
-  if (nglobs > nvars)
-    throw std::runtime_error("We can not have more globals then variables");
-
-  for (int vidx = 0; vidx != nglobs; ++vidx)
-    globals_.insert(vidx);
-
-  // add free indexes
-  int nidx = cfg::get(config_, VA::NIDX);
-  for (int vidx = 0; vidx != nidx; ++vidx) {
-    int vsz = vars_.size();
-    auto vpt = tgraph_->get_random_index_type();
-    vars_.emplace_back(vsz, vpt.id);
-    indexes_.insert(vsz);
-  }
-
-  // create pointee for any pointer
-  for (auto v : vars_) {
-    if (!tgraph_->vertex_from(v.type_id).is_pointer())
-      continue;
-    auto pointee_type = tgraph_->get_pointee(v.type_id);
-    int vsz = vars_.size();
-    vars_.emplace_back(vsz, pointee_type.id);
-    pointees_[v.id] = vsz;
+    int vid = create_var(vpt.id);
+    globals_.insert(vid);
   }
 
   // create function variable subsets
-  for (auto fit = cgraph_->begin(); fit != cgraph_->end(); ++fit) {
-  }
-
-  // add function argument variables
-  for (auto fit = cgraph_->begin(); fit != cgraph_->end(); ++fit) {
-  }
-
-  // create permutators for variables
-  for (auto v : vars_) {
-    auto vpt = tgraph_->vertex_from(v.type_id);
-    if (!vpt.is_array())
-      continue;
-    int nitems = std::get<tg::array_t>(vpt.type).nitems;
-    while (cfg::get(config_, VA::USEPERM)) {
-      auto vptp = tgraph_->get_random_perm_type(nitems);
-      int vsz = vars_.size();
-      vars_.emplace_back(vsz, vptp.id);
-      permutators_[v.id].push_back(vsz);
-      if (cfg::get(config_, VA::MAXPERM) == int(permutators_.size()))
-        break;
-    }
-  }
-
-  // create indexes for accessors
-  for (auto v : vars_) {
-    auto vpt = tgraph_->vertex_from(v.type_id);
-    if (!vpt.is_complex())
-      continue;
-  }
-
-  // set pointer indexes as pointee ones
-  for (auto v : vars_) {
-    if (!tgraph_->vertex_from(v.type_id).is_pointer())
-      continue;
-  }
+  fvars_.resize(cgraph_->nfuncs());
+  for (auto fit = cgraph_->begin(); fit != cgraph_->end(); ++fit)
+    create_function_vars(*fit);
 }
 
-std::string varassign_t::get_name(int vid) const {
+std::string varassign_t::get_name(int vid, int funcid) const {
   std::ostringstream os;
   if (is_global(vid)) {
     os << "g";
-  } else if (is_perm(vid)) {
+  } else if ((funcid != -1) && (fvars_[funcid].is_perm(vid))) {
     os << "p";
-  } else if (is_index(vid)) {
+  } else if ((funcid != -1) && (fvars_[funcid].is_index(vid))) {
     os << "i";
   } else {
     os << "v";
@@ -122,9 +63,133 @@ std::string varassign_t::get_name(int vid) const {
 }
 
 void varassign_t::dump(std::ostream &os) const {
-  for (auto v : vars_) {
-    auto vpt = tgraph_->vertex_from(v.type_id);
-    os << vpt.get_short_name() << " " << get_name(v.id) << std::endl;
+  os << "Globals\n";
+  for (auto v : globals_) {
+    auto vpt = tgraph_->vertex_from(vars_[v].type_id);
+    os << vpt.get_short_name() << " " << get_name(v, -1) << std::endl;
+  }
+
+  for (int f = 0, fe = fvars_.size(); f != fe; ++f) {
+    os << "Function #" << f << "\n";
+    for (auto v : fvars_[f].vars_) {
+      auto vpt = tgraph_->vertex_from(vars_[v].type_id);
+      os << vpt.get_short_name() << " " << get_name(v, f) << std::endl;
+    }
+  }
+}
+
+//------------------------------------------------------------------------------
+//
+// Construction helpers
+//
+//------------------------------------------------------------------------------
+
+// create single variable and add to storage
+int varassign_t::create_var(int tid) {
+  int vidx = vars_.size();
+  vars_.emplace_back(vidx, tid);
+  return vidx;
+}
+
+void varassign_t::process_var(int vid, int funcid) {
+  int tid = vars_[vid].type_id;
+  tg::vertexprop_t vpt = tgraph_->vertex_from(tid);
+
+  auto &fv = fvars_[funcid];
+
+  // create pointees for pointers
+  if (vpt.is_pointer()) {
+    int pointee_vid = create_var(tgraph_->get_pointee(tid).id);
+    fv.pointees_[vid] = pointee_vid;
+    fv.vars_.push_back(pointee_vid);
+  }
+
+  // create permutators for arrays
+  // TODO: we, theoretically, can permute arrays inside structures...
+  //       those "subpermutators" arent now supported
+  if (vpt.is_array()) {
+    int nitems = std::get<tg::array_t>(vpt.type).nitems;
+    while (cfg::get(config_, VA::USEPERM)) {
+      int perm_vid = create_var(tgraph_->get_random_perm_type(nitems).id);
+      fv.perms_.insert(perm_vid);
+      fv.permutators_[vid].push_back(perm_vid);
+      fv.vars_.push_back(perm_vid);
+
+      if (cfg::get(config_, VA::MAXPERM) == int(fv.permutators_.size()))
+        break;
+    }
+  }
+
+  // create indexes for accessors
+  std::queue<tg::vertexprop_t> chlds;
+  if (vpt.is_complex())
+    chlds.push(vpt);
+
+  while (!chlds.empty()) {
+    auto cpt = chlds.front();
+    chlds.pop();
+
+    if (cpt.is_array()) {
+      int index_vid = create_var(tgraph_->get_random_index_type().id);
+      fv.indexes_.insert(index_vid);
+      fv.accidxs_[vid].push_back(index_vid);
+      fv.vars_.push_back(index_vid);
+    }
+
+    for (auto cit = tgraph_->begin_childs(cpt.id);
+         cit != tgraph_->end_childs(cpt.id); ++cit) {
+      auto npt = tgraph_->vertex_from((*cit).first);
+      if (npt.is_complex())
+        chlds.push(npt);
+    }
+  }
+}
+
+void varassign_t::create_function_vars(int funcid) {
+  assert(funcid < cgraph_->nfuncs());
+  cfg::config_rng cfrng(config_);
+  auto &fv = fvars_[funcid];
+
+  // add free indexes
+  int nidx = cfg::get(config_, VA::NIDX);
+  for (int vidx = 0; vidx != nidx; ++vidx) {
+    int iid = create_var(tgraph_->get_random_index_type().id);
+    fv.register_index(iid);
+  }
+
+  // choose from all globals, those, that conform to metastructure
+  for (auto gid : globals_) {
+    if (!cgraph_->accept_type(funcid, gid))
+      continue;
+    fv.vars_.push_back(gid);
+    process_var(gid, funcid);
+  }
+
+  // add local variables
+  int vidx = 0;
+  int nvars = cfg::get(config_, MS::NVARS);
+  int nvatts = cfg::get(config_, VA::NVATTS);
+  while (vidx < nvars) {
+    auto vpt = tgraph_->get_random_type();
+    if (cgraph_->accept_type(funcid, vpt.id)) {
+      int vid = create_var(vpt.id);
+      fv.vars_.push_back(vid);
+      process_var(vid, funcid);
+      vidx += 1;
+    }
+    if (nvatts == 0)
+      break;
+    nvatts -= 1;
+  }
+
+  // add argument variables
+  auto vpt = cgraph_->vertex_from(funcid);
+
+  for (auto tid : vpt.argtypes) {
+    int vid = create_var(tid);
+    fv.args_.insert(vid);
+    fv.vars_.push_back(vid);
+    process_var(vid, funcid);
   }
 }
 
@@ -147,4 +212,8 @@ varassign_create(int seed, const cfg::config &cf,
     std::cerr << "Varassign construction problem: " << e.what() << std::endl;
     throw;
   }
+}
+
+void varassign_dump(std::shared_ptr<va::varassign_t> pv, std::ostream &os) {
+  pv->dump(os);
 }

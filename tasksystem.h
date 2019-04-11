@@ -48,16 +48,17 @@ void callgraph_dump(std::shared_ptr<cg::callgraph_t> cg, std::ostream &os);
 
 // varassign
 namespace va {
-class varassign;
+class varassign_t;
 }
 
-using va_task_type = std::shared_ptr<va::varassign>(
+using va_task_type = std::shared_ptr<va::varassign_t>(
     int, const cfg::config &cf, std::shared_ptr<tg::typegraph_t>,
     std::shared_ptr<cg::callgraph_t>);
 
-std::shared_ptr<va::varassign>
+std::shared_ptr<va::varassign_t>
 varassign_create(int, const cfg::config &cf, std::shared_ptr<tg::typegraph_t>,
                  std::shared_ptr<cg::callgraph_t>);
+void varassign_dump(std::shared_ptr<va::varassign_t>, std::ostream &);
 
 // controlgraph
 

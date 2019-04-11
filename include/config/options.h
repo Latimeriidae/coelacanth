@@ -65,9 +65,9 @@ enum class MS {
 // varassign level
 enum class VA {
   START = int(MS::MAX),
-  NVARS,
   NGLOBALS,
   NIDX,
+  NVATTS,
   USEPERM,
   MAXPERM,
   MAX
@@ -176,9 +176,9 @@ OPTDIAP(MS::NVARS, 5, 20,
         "Local variables added pressure in functions (whatever it be)");
 
 // varassign level
-OPTSINGLE(VA::NVARS, 50, "Starting number of variables");
 OPTSINGLE(VA::NGLOBALS, 10, "Number of globals out of starting");
-OPTSINGLE(VA::NIDX, 10, "Number of free indexes");
+OPTSINGLE(VA::NIDX, 5, "Number of free indexes for function");
+OPTSINGLE(VA::NVATTS, 50, "Number of attemps to choose locals");
 OPTPFLAG(VA::USEPERM, 10, 100, "Probability to add permutator to array");
 OPTSINGLE(VA::MAXPERM, 6, "Maximum number of index permutations");
 

@@ -52,6 +52,8 @@ public:
   vertex_iter_t begin() const;
   vertex_iter_t end() const;
 
+  int nfuncs() const { return boost::num_vertices(graph_); }
+
   callee_iterator_t callees_begin(vertex_t v, calltype_t mask) const;
   callee_iterator_t callees_end(vertex_t v, calltype_t mask) const;
   caller_iterator_t callers_begin(vertex_t v, calltype_t mask) const;
@@ -63,6 +65,8 @@ public:
 
   void dump(std::ostream &os) const;
 
+  bool accept_type(vertex_t v, tg::vertex_t vt) const;
+
   // construction helpers
 private:
   void generate_random_graph(int nvertices);
@@ -73,6 +77,9 @@ private:
   void decide_metastructure();
   void assign_types();
   std::pair<int, std::vector<int>> gen_params(vertex_t v);
+  bool accept_type(ms::metanode_t m, tg::vertexprop_t vpt) const;
+  bool accept_abi_type(vertexprop_t vp, tg::vertexprop_t vpt,
+                       bool ret_type) const;
   int pick_typeid(vertex_t v, bool allow_void = false, bool ret_type = false);
   void map_modules();
 };

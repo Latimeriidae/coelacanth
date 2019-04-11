@@ -177,7 +177,7 @@ vertex_iter_t callgraph_t::begin() const {
 
 vertex_iter_t callgraph_t::end() const {
   auto [vi, vi_end] = boost::vertices(graph_);
-  return vi;
+  return vi_end;
 }
 
 callee_iterator_t callgraph_t::callees_begin(vertex_t v,
@@ -223,6 +223,12 @@ void callgraph_t::dump(std::ostream &os) const {
                            std::mem_fn(&edgeprop_t::get_color), ebundle));
 
   boost::write_graphviz_dp(os, graph_, dp);
+}
+
+bool callgraph_t::accept_type(vertex_t v, tg::vertex_t vt) const {
+  ms::metanode_t m = graph_[v].metainfo;
+  tg::vertexprop_t vpt = tgraph_->vertex_from(vt);
+  return accept_type(m, vpt);
 }
 
 //------------------------------------------------------------------------------
@@ -448,8 +454,15 @@ void callgraph_t::decide_metastructure() {
   }
 }
 
-static inline bool accept_type(ms::metanode_t m, tg::vertexprop_t vpt,
-                               bool ret_type) {
+// single function to call from accept_abi_type and accept_type(id, tid)
+bool callgraph_t::accept_type(ms::metanode_t m, tg::vertexprop_t vpt) const {
+  return ms::check_type(m, vpt);
+}
+
+//
+bool callgraph_t::accept_abi_type(vertexprop_t vp, tg::vertexprop_t vpt,
+                                  bool ret_type) const {
+
   // we do not want to return pointers
   if (vpt.is_pointer() && ret_type)
     return false;
@@ -458,11 +471,7 @@ static inline bool accept_type(ms::metanode_t m, tg::vertexprop_t vpt,
   if (vpt.is_array())
     return false;
 
-  // check against metastructure before accept
-  if (!ms::check_type(m, vpt))
-    return false;
-
-  return true;
+  return accept_type(vp.metainfo, vpt);
 }
 
 int callgraph_t::pick_typeid(vertex_t v, bool allow_void, bool ret_type) {
@@ -470,7 +479,7 @@ int callgraph_t::pick_typeid(vertex_t v, bool allow_void, bool ret_type) {
   for (int nattempts = cfg::get(config_, CG::TYPEATTEMPTS); nattempts > 0;
        --nattempts) {
     auto randt = tgraph_->get_random_type();
-    if (accept_type(vp.metainfo, randt, ret_type))
+    if (accept_abi_type(vp, randt, ret_type))
       return randt.id;
   }
 
@@ -478,7 +487,7 @@ int callgraph_t::pick_typeid(vertex_t v, bool allow_void, bool ret_type) {
   // metastructure is too restrictive)
   for (auto tv = tgraph_->begin(), tve = tgraph_->end(); tv != tve; ++tv) {
     auto randt = tgraph_->vertex_from(*tv);
-    if (accept_type(vp.metainfo, randt, ret_type))
+    if (accept_abi_type(vp, randt, ret_type))
       return randt.id;
   }
 

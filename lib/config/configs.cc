@@ -158,6 +158,8 @@ config read_global_config(int argc, char **argv) {
   // default config ready
   config cfg(seed, quiet, option_registry.begin(), option_registry.end());
 
+  postverify(cfg);
+
   return cfg;
 }
 
@@ -230,5 +232,10 @@ size_t config::prob_size(int id) const {
 }
 
 void config::dump(std::ostream &os) const { os << "Programm config:\n"; }
+
+// post-verification of config
+void postverify(const config &) {
+  // TODO: here we shall ensure dependencies between options
+}
 
 } // namespace cfg

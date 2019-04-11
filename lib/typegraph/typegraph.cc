@@ -308,7 +308,7 @@ int typegraph_t::do_split() {
   auto it = leaf_vs_.begin();
   std::advance(it, n);
   auto vdesc = *it;
-  assert(graph_[vdesc].cat == category_t::SCALAR);
+  assert(graph_[vdesc].is_scalar());
 
   // generate container
   int ncont = cfg::get(config_, TG::CONTTYPE);
@@ -320,9 +320,9 @@ int typegraph_t::do_split() {
     p = get_pred(p.value());
     if (!p.has_value())
       break;
-    if (graph_[p.value()].cat == category_t::ARRAY)
+    if (graph_[p.value()].is_array())
       narrsup += 1;
-    if (graph_[p.value()].cat == category_t::STRUCT)
+    if (graph_[p.value()].is_struct())
       nstructsup += 1;
   }
 
@@ -463,8 +463,7 @@ void typegraph_t::create_bitfields() {
 
     for (auto [ei, ei_end] = boost::out_edges(v, graph_); ei != ei_end; ++ei) {
       vertex_t succ = boost::target(*ei, graph_);
-      if ((graph_[succ].cat == category_t::SCALAR) &&
-          cfg::get(config_, TG::BFPROB)) {
+      if ((graph_[succ].is_scalar()) && cfg::get(config_, TG::BFPROB)) {
         auto bfsz = cfg::get(config_, TG::BFSIZE);
         st.bitfields_.push_back(std::make_pair(succ, bfsz));
       }
@@ -488,7 +487,7 @@ void typegraph_t::choose_perms_idxs() {
     auto [ei, ei_end] = boost::out_edges(varr, graph_);
     assert(ei + 1 == ei_end);
     vertex_t succ = boost::target(*ei, graph_);
-    if (graph_[succ].cat == category_t::SCALAR) {
+    if (graph_[succ].is_scalar()) {
       scalar_t &sdt = std::get<scalar_t>(graph_[succ].type);
       if (!sdt.sdesc->is_float)
         perm_vs_[adt.nitems - 1].push_back(varr);

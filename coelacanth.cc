@@ -25,8 +25,10 @@
 
 #include <fstream>
 #include <future>
+#include <iostream>
 #include <mutex>
 #include <queue>
+#include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -127,6 +129,11 @@ int main(int argc, char **argv) {
 
   for (int r_var = 0; r_var < nvar; ++r_var) {
     auto va = vafuts[r_var].get();
+
+    std::ostringstream os;
+    os << "varassign." << r_var;
+    std::ofstream of(os.str());
+    varassign_dump(va, of);
 
     // put controlgraph tasks
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {

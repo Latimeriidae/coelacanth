@@ -64,14 +64,54 @@ class varassign_t final {
   std::shared_ptr<tg::typegraph_t> tgraph_;
   std::shared_ptr<cg::callgraph_t> cgraph_;
 
+  // storage for variables vx
   std::vector<variable_t> vars_;
+
+  // global variables gx
   std::unordered_set<int> globals_;
-  std::unordered_set<int> perms_;
-  std::unordered_set<int> indexes_;
-  std::unordered_map<int, int> pointees_;
-  std::unordered_map<int, std::vector<int>> accidxs_;
-  std::unordered_map<int, std::vector<int>> permutators_;
-  std::vector<std::vector<int>> fvars_;
+
+  struct func_vars {
+    // function vars
+    std::vector<int> vars_;
+
+    // permutators px
+    std::unordered_set<int> perms_;
+
+    // indexes ix
+    std::unordered_set<int> indexes_;
+
+    // arguments xx
+    std::unordered_set<int> args_;
+
+    // pointees: x -> y
+    // If v[x] have pointer type, it points to some v[y]
+    std::unordered_map<int, int> pointees_;
+
+    // accessor idxs
+    // array or struct with array members vx may have accessors iy, iz, ....
+    std::unordered_map<int, std::vector<int>> accidxs_;
+
+    // permutator idxs
+    // array vx[iz] may have permutator py[iz] (also array) like this:
+    // vx[py[iz]] we may have a lot of stacked permutators vx[pa[pb[pc[iz]]]]
+    std::unordered_map<int, std::vector<int>> permutators_;
+
+    void register_index(int iid) {
+      indexes_.insert(iid);
+      vars_.push_back(iid);
+    }
+
+    bool is_perm(int vid) const { return perms_.find(vid) != perms_.end(); }
+    bool is_index(int vid) const {
+      return indexes_.find(vid) != indexes_.end();
+    }
+    bool is_argument(int vid) const { return args_.find(vid) != args_.end(); }
+  };
+
+  bool is_global(int vid) const { return globals_.find(vid) != globals_.end(); }
+
+  // every function have some variables
+  std::vector<func_vars> fvars_;
 
   // public interface
 public:
@@ -80,16 +120,15 @@ public:
   auto begin() const { return vars_.cbegin(); }
   auto end() const { return vars_.cend(); }
 
-  bool is_global(int vid) const { return globals_.find(vid) != globals_.end(); }
-  bool is_perm(int vid) const { return perms_.find(vid) != perms_.end(); }
-  bool is_index(int vid) const { return indexes_.find(vid) != indexes_.end(); }
-
-  std::string get_name(int vid) const;
+  std::string get_name(int vid, int funcid) const;
 
   void dump(std::ostream &os) const;
 
   // helpers
 private:
+  int create_var(int tid);
+  void process_var(int vid, int funcid);
+  void create_function_vars(int fid);
 };
 
 } // namespace va

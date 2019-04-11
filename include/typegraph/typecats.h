@@ -76,6 +76,7 @@ struct vertexprop_t {
       : id(i), cat(c), type(t) {}
   std::string get_short_name() const;
   std::string get_name() const;
+  bool is_scalar() const { return (cat == category_t::SCALAR); }
   bool is_struct() const { return (cat == category_t::STRUCT); }
   bool is_array() const { return (cat == category_t::ARRAY); }
   bool is_pointer() const { return (cat == category_t::POINTER); }
