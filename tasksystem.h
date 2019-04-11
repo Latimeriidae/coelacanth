@@ -52,15 +52,29 @@ class varassign_t;
 }
 
 using va_task_type = std::shared_ptr<va::varassign_t>(
-    int, const cfg::config &cf, std::shared_ptr<tg::typegraph_t>,
+    int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
     std::shared_ptr<cg::callgraph_t>);
 
 std::shared_ptr<va::varassign_t>
-varassign_create(int, const cfg::config &cf, std::shared_ptr<tg::typegraph_t>,
+varassign_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
                  std::shared_ptr<cg::callgraph_t>);
 void varassign_dump(std::shared_ptr<va::varassign_t>, std::ostream &);
 
 // controlgraph
+namespace cn {
+class controlgraph_t;
+}
+
+using cn_task_type = std::shared_ptr<cn::controlgraph_t>(
+    int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
+    std::shared_ptr<cg::callgraph_t>, std::shared_ptr<va::varassign_t>);
+
+std::shared_ptr<cn::controlgraph_t>
+controlgraph_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
+                    std::shared_ptr<cg::callgraph_t>,
+                    std::shared_ptr<va::varassign_t>);
+
+void controlgraph_dump(std::shared_ptr<cn::controlgraph_t>, std::ostream &os);
 
 // locIR
 

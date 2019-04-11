@@ -79,18 +79,18 @@ int main(int argc, char **argv) {
   }
 
   // now we need typegraph to create callgraph
-  auto tg = typegraph_fut.get();
+  auto tgraph = typegraph_fut.get();
 
   {
     std::ofstream of("initial.types");
-    typegraph_dump(tg, of);
+    typegraph_dump(tgraph, of);
   }
 
   int cgseed = default_config.rand_positive();
 
   // put callgraph task
-  auto &&[callgraph_task, callgraph_fut] =
-      create_task<cg_task_type>(callgraph_create, cgseed, default_config, tg);
+  auto &&[callgraph_task, callgraph_fut] = create_task<cg_task_type>(
+      callgraph_create, cgseed, default_config, tgraph);
 
   {
     std::lock_guard<std::mutex> lk{task_queue_mutex};
@@ -103,23 +103,27 @@ int main(int argc, char **argv) {
   int narith = cfg::get(default_config, PG::ARITH);
 
   // now we need callgraph to start creating varassigns
-  auto cg = callgraph_fut.get();
+  auto cgraph = callgraph_fut.get();
 
   {
     std::ofstream of("initial.calls");
-    callgraph_dump(cg, of);
+    callgraph_dump(cgraph, of);
   }
 
-  using va_fut_t = decltype(
-      create_task<va_task_type>(varassign_create, 0, default_config, tg, cg)
-          .second);
+  using va_fut_t =
+      decltype(create_task<va_task_type>(varassign_create, 0, default_config,
+                                         tgraph, cgraph)
+                   .second);
+  using va_sp_t = decltype(va_fut_t{}.get());
+
   std::vector<va_fut_t> vafuts;
+  std::vector<va_sp_t> vassigns;
 
   // put varassign tasks
   for (int r_var = 0; r_var < nvar; ++r_var) {
     int vaseed = default_config.rand_positive();
     auto &&[vassign_task, vassign_fut] = create_task<va_task_type>(
-        varassign_create, vaseed, default_config, tg, cg);
+        varassign_create, vaseed, default_config, tgraph, cgraph);
     {
       std::lock_guard<std::mutex> lk{task_queue_mutex};
       task_queue.push(std::move(vassign_task));
@@ -127,27 +131,58 @@ int main(int argc, char **argv) {
     vafuts.emplace_back(std::move(vassign_fut));
   }
 
+  using cn_fut_t =
+      decltype(create_task<cn_task_type>(controlgraph_create, 0, default_config,
+                                         tgraph, cgraph, va_sp_t{})
+                   .second);
+  using cn_sp_t = decltype(cn_fut_t{}.get());
+
+  std::vector<cn_fut_t> cnfuts;
+  std::vector<cn_sp_t> cfgs;
+
+  // put controlgraph tasks
   for (int r_var = 0; r_var < nvar; ++r_var) {
-    auto va = vafuts[r_var].get();
+    auto vassign = vafuts[r_var].get();
 
     std::ostringstream os;
     os << "varassign." << r_var;
     std::ofstream of(os.str());
-    varassign_dump(va, of);
+    varassign_dump(vassign, of);
 
-    // put controlgraph tasks
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
-      // TODO: put task to queue
+      int cnseed = default_config.rand_positive();
+      auto &&[cn_task, cn_fut] = create_task<cn_task_type>(
+          controlgraph_create, cnseed, default_config, tgraph, cgraph, vassign);
+      {
+        std::lock_guard<std::mutex> lk{task_queue_mutex};
+        task_queue.push(std::move(cn_task));
+      }
+      cnfuts.emplace_back(std::move(cn_fut));
     }
+
+    vassigns.emplace_back(std::move(vassign));
   }
 
+  // put locIR tasks
   for (int r_var = 0; r_var < nvar; ++r_var)
-    for (int r_splits = 0; r_splits < nsplits; ++r_splits)
+    for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
+      auto vassign = vassigns[r_var];
+      cn_sp_t cfgraph;
+      if (r_var == 0)
+        cfgraph = cnfuts[r_splits].get();
+      else
+        cfgraph = cfgs[r_splits];
+
       for (int r_locs = 0; r_locs < nlocs; ++r_locs) {
         // create locIR
         // TODO: put task to queue
       }
 
+      if (r_var == 0)
+        cfgs.emplace_back(std::move(cfgraph));
+    }
+
+  // put exprIR tasks
   for (int r_var = 0; r_var < nvar; ++r_var)
     for (int r_splits = 0; r_splits < nsplits; ++r_splits)
       for (int r_locs = 0; r_locs < nlocs; ++r_locs)
@@ -156,6 +191,7 @@ int main(int argc, char **argv) {
           // TODO: put task to queue
         }
 
+  // put final task
   task_t sentinel{[] { return -1; }};
   {
     std::lock_guard<std::mutex> lk{task_queue_mutex};
