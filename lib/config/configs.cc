@@ -56,25 +56,36 @@ void register_option(int global_id, string global_name, optrecord optrec,
   std::visit(
       [global_name, description, borderval](auto &&arg) {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, cfg::single>)
-          desc.add_options()(global_name.c_str(), po::value<int>(),
+        if constexpr (std::is_same_v<T, cfg::single>) {
+          desc.add_options()(global_name.c_str(),
+                             po::value<int>()->default_value(arg.val),
                              description.c_str());
-        else if constexpr (std::is_same_v<T, cfg::diap>) {
+        } else if constexpr (std::is_same_v<T, cfg::diap>) {
           string gnmax = global_name + "-max";
           string gnmin = global_name + "-min";
           string descmax = description + " (max value)";
           string descmin = description + " (min value)";
-          desc.add_options()(gnmax.c_str(), po::value<int>(), descmax.c_str());
-          desc.add_options()(gnmin.c_str(), po::value<int>(), descmin.c_str());
+          desc.add_options()(gnmax.c_str(),
+                             po::value<int>()->default_value(arg.to),
+                             descmax.c_str());
+          desc.add_options()(gnmin.c_str(),
+                             po::value<int>()->default_value(arg.from),
+                             descmin.c_str());
         } else if constexpr (std::is_same_v<T, cfg::probf>) {
-          string descprobf = description + " (array)";
+          std::ostringstream descprobf;
+          descprobf << description << ". Defaults to:";
+          for (auto p : arg.probs)
+            descprobf << " " << p;
           desc.add_options()(global_name.c_str(),
                              po::value<std::vector<int>>()->multitoken(),
-                             descprobf.c_str());
+                             descprobf.str().c_str());
           probf_borders[global_name] = borderval;
         } else if constexpr (std::is_same_v<T, cfg::pflag>) {
-          desc.add_options()(global_name.c_str(), po::value<int>(),
-                             description.c_str());
+          std::ostringstream descstr;
+          descstr << description << ". Total is: " << arg.total;
+          desc.add_options()(global_name.c_str(),
+                             po::value<int>()->default_value(arg.prob),
+                             descstr.str().c_str());
           probf_borders[global_name] = borderval;
         } else
           static_assert(always_false<T>::value, "non-exhaustive visitor!");
