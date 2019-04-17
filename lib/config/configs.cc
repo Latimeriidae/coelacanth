@@ -88,6 +88,8 @@ void register_options() {
                      "Seed for RNG");
   desc.add_options()("quiet", po::bool_switch()->default_value(false),
                      "Suppress almost all messages");
+  desc.add_options()("dumps", po::bool_switch()->default_value(false),
+                     "Make coelacanth emit verbose dumps from all passes");
 #define OPREGISTRY
 #include "options.h"
 #undef OPREGISTRY
@@ -107,6 +109,7 @@ config read_global_config(int argc, char **argv) {
   }
 
   bool quiet = vm["quiet"].as<bool>();
+  bool dumps = vm["dumps"].as<bool>();
   int seed = vm["seed"].as<int>();
 
   if (!quiet) {
@@ -156,7 +159,8 @@ config read_global_config(int argc, char **argv) {
   }
 
   // default config ready
-  config cfg(seed, quiet, option_registry.begin(), option_registry.end());
+  config cfg(seed, quiet, dumps, option_registry.begin(),
+             option_registry.end());
 
   postverify(cfg);
 

@@ -590,7 +590,7 @@ std::shared_ptr<cg::callgraph_t>
 callgraph_create(int seed, const cfg::config &cf,
                  std::shared_ptr<tg::typegraph_t> sptg) {
   try {
-    cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
+    cfg::config newcf(seed, cf.quiet(), cf.dumps(), cf.cbegin(), cf.cend());
     return std::make_shared<cg::callgraph_t>(std::move(newcf), sptg);
   } catch (std::runtime_error &e) {
     std::cerr << "Callgraph construction problem: " << e.what() << std::endl;

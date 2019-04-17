@@ -53,6 +53,7 @@
 #include <vector>
 
 #include "config/configs.h"
+#include "varassign/variable.h"
 
 namespace tg {
 class typegraph_t;
@@ -80,6 +81,8 @@ enum class category_t {
   SWITCH,
   REGION,
   BRANCHING,
+  ACCESS,
+  BREAK,
   CATMAX
 };
 
@@ -116,23 +119,19 @@ struct branching_t {
   static constexpr category_t cat = category_t::BRANCHING;
 };
 
-using common_t = std::variant<block_t, call_t, loop_t, if_t, switch_t, region_t,
-                              branching_t>;
-
-struct vertexprop_t {
-  vertex_t id = ILLEGAL_VERTEX;
-  category_t cat = category_t::ILLEGAL;
-  common_t type;
-
-  vertexprop_t() = default;
-  explicit vertexprop_t(vertex_t i, category_t c, common_t t)
-      : id(i), cat(c), type(t) {}
+struct access_t {
+  static constexpr category_t cat = category_t::ACCESS;
 };
 
-template <typename T, typename... Ts>
-vertexprop_t create_vprop(vertex_t id, Ts &&... args) {
-  return vertexprop_t{id, T::cat, T{std::forward<Ts>(args)...}};
-}
+enum class break_type_t { CONTINUE, BREAK, RETURN };
+
+struct break_t {
+  static constexpr category_t cat = category_t::BREAK;
+  break_type_t btp;
+};
+
+using common_t = std::variant<block_t, call_t, loop_t, if_t, switch_t, region_t,
+                              branching_t, access_t, break_t>;
 
 class split_tree_t;
 
@@ -141,6 +140,49 @@ struct split_tree_deleter_t {
 };
 
 using stt = std::unique_ptr<split_tree_t, split_tree_deleter_t>;
+
+// vertexprop is rather large, so real operating type is shared-pointer to it
+// see svp below
+class vertexprop_t {
+  const split_tree_t &parent_;
+  vertex_t id_ = ILLEGAL_VERTEX;
+  category_t cat_ = category_t::ILLEGAL;
+  common_t type_;
+
+  std::vector<va::variable_t> defs_;
+  std::vector<va::variable_t> uses_;
+
+public:
+  using vait = typename std::vector<va::variable_t>::const_iterator;
+
+  vertexprop_t() = default;
+  explicit vertexprop_t(const split_tree_t &p, vertex_t i, category_t c,
+                        common_t t)
+      : parent_(p), id_(i), cat_(c), type_(t) {}
+  category_t cat() const { return cat_; }
+  common_t type() const { return type_; }
+  bool is_block() const { return cat_ == category_t::BLOCK; }
+  bool is_branching() const {
+    return cat_ == category_t::IF || cat_ == category_t::SWITCH ||
+           cat_ == category_t::REGION;
+  }
+
+  vait defs_begin() const { return defs_.cbegin(); }
+  vait defs_end() const { return defs_.cend(); }
+  vait uses_begin() const { return uses_.cbegin(); }
+  vait uses_end() const { return uses_.cend(); }
+  std::string varname(va::variable_t v) const;
+};
+
+using svp = std::shared_ptr<const vertexprop_t>;
+
+std::ostream &operator<<(std::ostream &os, svp v);
+
+template <typename T, typename... Ts>
+svp create_vprop(const split_tree_t &p, vertex_t id, Ts &&... args) {
+  return std::make_shared<vertexprop_t>(p, id, T::cat,
+                                        T{std::forward<Ts>(args)...});
+}
 
 using vertex_iter_t = typename std::list<vertex_t>::const_iterator;
 
@@ -168,7 +210,8 @@ public:
   vertex_iter_t begin_childs(int nfunc, vertex_t parent) const;
   vertex_iter_t end_childs(int nfunc, vertex_t parent) const;
 
-  vertexprop_t from_vertex(int nfunc, vertex_t) const;
+  svp from_vertex(int nfunc, vertex_t) const;
+  std::string varname(int nfunc, int vid) const;
 
   void dump(std::ostream &os) const;
 };

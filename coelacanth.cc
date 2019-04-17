@@ -44,15 +44,16 @@ std::mutex mut_dbgs;
 
 void consumer_thread_func();
 
+// TODO: this function grown over 200 lines long. Of course it is linear, but
+// nevertheless it shall be broken into logical parts
 int main(int argc, char **argv) {
-  // default config
   cfg::config default_config = cfg::read_global_config(argc, argv);
 
   if (!default_config.quiet())
     std::cout << "Coelacanth info: git hash = " << GIT_COMMIT_HASH
               << ", built on " << TIMESTAMP << std::endl;
 
-  {
+  if (default_config.dumps()) {
     std::ofstream of("initial.cfg");
     default_config.dump(of);
   }
@@ -81,7 +82,7 @@ int main(int argc, char **argv) {
   // now we need typegraph to create callgraph
   auto tgraph = typegraph_fut.get();
 
-  {
+  if (default_config.dumps()) {
     std::ofstream of("initial.types");
     typegraph_dump(tgraph, of);
   }
@@ -105,7 +106,7 @@ int main(int argc, char **argv) {
   // now we need callgraph to start creating varassigns
   auto cgraph = callgraph_fut.get();
 
-  {
+  if (default_config.dumps()) {
     std::ofstream of("initial.calls");
     callgraph_dump(cgraph, of);
   }
@@ -144,10 +145,12 @@ int main(int argc, char **argv) {
   for (int r_var = 0; r_var < nvar; ++r_var) {
     auto vassign = vafuts[r_var].get();
 
-    std::ostringstream os;
-    os << "varassign." << r_var;
-    std::ofstream of(os.str());
-    varassign_dump(vassign, of);
+    if (default_config.dumps()) {
+      std::ostringstream os;
+      os << "varassign." << r_var;
+      std::ofstream of(os.str());
+      varassign_dump(vassign, of);
+    }
 
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
       int cnseed = default_config.rand_positive();
@@ -168,9 +171,15 @@ int main(int argc, char **argv) {
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
       auto vassign = vassigns[r_var];
       cn_sp_t cfgraph;
-      if (r_var == 0)
+      if (r_var == 0) {
         cfgraph = cnfuts[r_splits].get();
-      else
+        if (default_config.dumps()) {
+          std::ostringstream os;
+          os << "controlgraph." << r_splits;
+          std::ofstream of(os.str());
+          controlgraph_dump(cfgraph, of);
+        }
+      } else
         cfgraph = cfgs[r_splits];
 
       for (int r_locs = 0; r_locs < nlocs; ++r_locs) {

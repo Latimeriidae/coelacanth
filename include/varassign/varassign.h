@@ -37,6 +37,7 @@
 #pragma once
 
 #include "config/configs.h"
+#include "variable.h"
 
 #include <memory>
 #include <unordered_map>
@@ -52,12 +53,6 @@ class callgraph_t;
 }
 
 namespace va {
-
-struct variable_t {
-  int id;
-  int type_id;
-  variable_t(int i = -1, int ti = -1) : id(i), type_id(ti) {}
-};
 
 class varassign_t final {
   cfg::config config_;

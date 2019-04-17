@@ -76,6 +76,7 @@ using ormap_cit = std::map<int, optrecord>::const_iterator;
 class config {
   ormap_t cfg_;
   bool quiet_;
+  bool dump_;
   mutable std::mt19937_64 mt_source;
 
   // get helpers
@@ -85,12 +86,13 @@ private:
 
   // public interface
 public:
-  config(int seed, bool quiet, ormap_cit start, ormap_cit fin)
-      : cfg_(start, fin), quiet_(quiet), mt_source(seed) {}
+  config(int seed, bool quiet, bool dumps, ormap_cit start, ormap_cit fin)
+      : cfg_(start, fin), quiet_(quiet), dump_(dumps), mt_source(seed) {}
   int get(int id) const;
   std::pair<int, int> minmax(int id) const;
   size_t prob_size(int id) const;
   bool quiet() const { return quiet_; }
+  bool dumps() const { return dump_; }
   ormap_cit cbegin() const { return cfg_.cbegin(); }
   ormap_cit cend() const { return cfg_.cend(); }
   void dump(std::ostream &os) const;

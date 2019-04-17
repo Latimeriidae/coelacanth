@@ -206,7 +206,7 @@ varassign_create(int seed, const cfg::config &cf,
                  std::shared_ptr<tg::typegraph_t> sptg,
                  std::shared_ptr<cg::callgraph_t> spcg) {
   try {
-    cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
+    cfg::config newcf(seed, cf.quiet(), cf.dumps(), cf.cbegin(), cf.cend());
     return std::make_shared<va::varassign_t>(std::move(newcf), sptg, spcg);
   } catch (std::runtime_error &e) {
     std::cerr << "Varassign construction problem: " << e.what() << std::endl;

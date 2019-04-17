@@ -74,7 +74,17 @@ enum class VA {
 };
 
 // controlgraph level
-enum class CN { START = int(VA::MAX), MAX };
+enum class CN {
+  START = int(VA::MAX),
+  ADDBLOCKS,
+  EXPANDCONT,
+  CONTPROB,
+  NBRANCHES_IF,
+  NBRANCHES_SWITCH,
+  NBRANCHES_RGN,
+  BLOCKPROB,
+  MAX
+};
 
 // locir level
 enum class LI { START = int(CN::MAX), MAX };
@@ -106,6 +116,12 @@ enum {
   TGP_DOUBLE,
   TGP_MAX
 };
+
+// for CN::CONTPROB
+enum { CNC_IF, CNC_FOR, CNC_SWITCH, CNC_REGION, CNC_MAX };
+
+// for CN::BLOCKPROB
+enum { CNB_BREAK, CNB_CCALL, CNB_ICALL, CNB_MAX };
 
 #endif
 
@@ -181,6 +197,17 @@ OPTSINGLE(VA::NIDX, 5, "Number of free indexes for function");
 OPTSINGLE(VA::NVATTS, 50, "Number of attemps to choose locals");
 OPTPFLAG(VA::USEPERM, 10, 100, "Probability to add permutator to array");
 OPTSINGLE(VA::MAXPERM, 6, "Maximum number of index permutations");
+
+// controlgraph level
+OPTSINGLE(CN::ADDBLOCKS, 2, "Number of blocks to add on cf split");
+OPTPFLAG(CN::EXPANDCONT, 80, 100, "Probability to get container cf split");
+OPTPROBF(CN::CONTPROB, (probf_t{40, 80, 90, 100}), CNC_MAX,
+         "Probability function for containers");
+OPTDIAP(CN::NBRANCHES_IF, 2, 6, "Amount of branches inside if");
+OPTDIAP(CN::NBRANCHES_SWITCH, 6, 10, "Amount of branches inside switch");
+OPTDIAP(CN::NBRANCHES_RGN, 4, 7, "Amount of branches inside region");
+OPTPROBF(CN::BLOCKPROB, (probf_t{40, 100}), CNB_MAX,
+         "Probability function for calls");
 
 #undef OPTPFLAG
 #undef OPTPROBF

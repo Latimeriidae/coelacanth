@@ -535,7 +535,7 @@ void typegraph_t::choose_perms_idxs() {
 std::shared_ptr<tg::typegraph_t> typegraph_create(int seed,
                                                   const cfg::config &cf) {
   try {
-    cfg::config newcf(seed, cf.quiet(), cf.cbegin(), cf.cend());
+    cfg::config newcf(seed, cf.quiet(), cf.dumps(), cf.cbegin(), cf.cend());
     auto tg = std::make_shared<tg::typegraph_t>(std::move(newcf));
     return tg;
   } catch (std::runtime_error &e) {
