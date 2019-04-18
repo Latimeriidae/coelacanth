@@ -53,7 +53,7 @@
 #include <vector>
 
 #include "config/configs.h"
-#include "varassign/variable.h"
+#include "controltypes.h"
 
 namespace tg {
 class typegraph_t;
@@ -69,123 +69,6 @@ class varassign_t;
 
 namespace cn {
 
-using vertex_t = int;
-constexpr vertex_t ILLEGAL_VERTEX = -1;
-
-enum class category_t {
-  ILLEGAL = -1,
-  BLOCK = 0,
-  CALL,
-  LOOP,
-  IF,
-  SWITCH,
-  REGION,
-  BRANCHING,
-  ACCESS,
-  BREAK,
-  CATMAX
-};
-
-struct block_t {
-  static constexpr category_t cat = category_t::BLOCK;
-};
-
-enum class call_type_t { DIRECT, CONDITIONAL, INDIRECT };
-
-struct call_t {
-  static constexpr category_t cat = category_t::CALL;
-  call_type_t type;
-  int nfunc;
-};
-
-struct loop_t {
-  static constexpr category_t cat = category_t::LOOP;
-  int start, stop, step;
-};
-
-struct if_t {
-  static constexpr category_t cat = category_t::IF;
-};
-
-struct switch_t {
-  static constexpr category_t cat = category_t::SWITCH;
-};
-
-struct region_t {
-  static constexpr category_t cat = category_t::REGION;
-};
-
-struct branching_t {
-  static constexpr category_t cat = category_t::BRANCHING;
-};
-
-struct access_t {
-  static constexpr category_t cat = category_t::ACCESS;
-};
-
-enum class break_type_t { CONTINUE, BREAK, RETURN };
-
-struct break_t {
-  static constexpr category_t cat = category_t::BREAK;
-  break_type_t btp;
-};
-
-using common_t = std::variant<block_t, call_t, loop_t, if_t, switch_t, region_t,
-                              branching_t, access_t, break_t>;
-
-class split_tree_t;
-
-struct split_tree_deleter_t {
-  void operator()(split_tree_t *);
-};
-
-using stt = std::unique_ptr<split_tree_t, split_tree_deleter_t>;
-
-// vertexprop is rather large, so real operating type is shared-pointer to it
-// see svp below
-class vertexprop_t {
-  const split_tree_t &parent_;
-  vertex_t id_ = ILLEGAL_VERTEX;
-  category_t cat_ = category_t::ILLEGAL;
-  common_t type_;
-
-  std::vector<va::variable_t> defs_;
-  std::vector<va::variable_t> uses_;
-
-public:
-  using vait = typename std::vector<va::variable_t>::const_iterator;
-
-  vertexprop_t() = default;
-  explicit vertexprop_t(const split_tree_t &p, vertex_t i, category_t c,
-                        common_t t)
-      : parent_(p), id_(i), cat_(c), type_(t) {}
-  category_t cat() const { return cat_; }
-  common_t type() const { return type_; }
-  bool is_block() const { return cat_ == category_t::BLOCK; }
-  bool is_branching() const {
-    return cat_ == category_t::IF || cat_ == category_t::SWITCH ||
-           cat_ == category_t::REGION;
-  }
-
-  vait defs_begin() const { return defs_.cbegin(); }
-  vait defs_end() const { return defs_.cend(); }
-  vait uses_begin() const { return uses_.cbegin(); }
-  vait uses_end() const { return uses_.cend(); }
-  std::string varname(va::variable_t v) const;
-};
-
-using svp = std::shared_ptr<const vertexprop_t>;
-
-std::ostream &operator<<(std::ostream &os, svp v);
-
-template <typename T, typename... Ts>
-svp create_vprop(const split_tree_t &p, vertex_t id, Ts &&... args) {
-  return std::make_shared<vertexprop_t>(p, id, T::cat,
-                                        T{std::forward<Ts>(args)...});
-}
-
-using vertex_iter_t = typename std::list<vertex_t>::const_iterator;
-
 class controlgraph_t final {
   cfg::config config_;
   std::shared_ptr<tg::typegraph_t> tgraph_;
@@ -200,7 +83,7 @@ public:
                           std::shared_ptr<cg::callgraph_t>,
                           std::shared_ptr<va::varassign_t>);
 
-  int nfuncs() const { return cgraph_->nfuncs(); }
+  int nfuncs() const;
 
   // top-level iterator by function number
   vertex_iter_t begin(int nfunc) const;
@@ -210,10 +93,18 @@ public:
   vertex_iter_t begin_childs(int nfunc, vertex_t parent) const;
   vertex_iter_t end_childs(int nfunc, vertex_t parent) const;
 
-  svp from_vertex(int nfunc, vertex_t) const;
+  shared_vp_t from_vertex(int nfunc, vertex_t) const;
   std::string varname(int nfunc, int vid) const;
 
+  // get random call target from call graph or -1 if no available
+  int random_callee(int nfunc, call_type_t) const;
+
   void dump(std::ostream &os) const;
+
+  // public but not recommended for unenlightened usage interface
+public:
+  void add_vars(int cntp, int nfunc, vertexprop_t &vp) const;
+  void assign_vars_to(int nfunc, vertexprop_t &vp) const;
 };
 
 } // namespace cn

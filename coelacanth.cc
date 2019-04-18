@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
                    .second);
   using cn_sp_t = decltype(cn_fut_t{}.get());
 
-  std::vector<cn_fut_t> cnfuts;
+  std::vector<std::vector<cn_fut_t>> cnfuts(nvar);
   std::vector<cn_sp_t> cfgs;
 
   // put controlgraph tasks
@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
         std::lock_guard<std::mutex> lk{task_queue_mutex};
         task_queue.push(std::move(cn_task));
       }
-      cnfuts.emplace_back(std::move(cn_fut));
+      cnfuts[r_var].emplace_back(std::move(cn_fut));
     }
 
     vassigns.emplace_back(std::move(vassign));
@@ -171,16 +171,13 @@ int main(int argc, char **argv) {
     for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
       auto vassign = vassigns[r_var];
       cn_sp_t cfgraph;
-      if (r_var == 0) {
-        cfgraph = cnfuts[r_splits].get();
-        if (default_config.dumps()) {
-          std::ostringstream os;
-          os << "controlgraph." << r_splits;
-          std::ofstream of(os.str());
-          controlgraph_dump(cfgraph, of);
-        }
-      } else
-        cfgraph = cfgs[r_splits];
+      cfgraph = cnfuts[r_var][r_splits].get();
+      if (default_config.dumps()) {
+        std::ostringstream os;
+        os << "controlgraph." << r_var << "." << r_splits;
+        std::ofstream of(os.str());
+        controlgraph_dump(cfgraph, of);
+      }
 
       for (int r_locs = 0; r_locs < nlocs; ++r_locs) {
         // create locIR

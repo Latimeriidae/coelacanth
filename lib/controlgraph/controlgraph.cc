@@ -23,6 +23,7 @@
 //------------------------------------------------------------------------------
 
 #include <iostream>
+#include <iterator>
 #include <list>
 #include <memory>
 #include <stack>
@@ -33,11 +34,19 @@
 
 #include "../dbgstream.h"
 #include "callgraph/callgraph.h"
+#include "callgraph/calliters.h"
 #include "controlgraph.h"
+#include "splittree.h"
 #include "typegraph/typegraph.h"
 #include "varassign/varassign.h"
 
 namespace cn {
+
+//------------------------------------------------------------------------------
+//
+// Vertexprop helpers
+//
+//------------------------------------------------------------------------------
 
 template <typename T, int N> constexpr int array_size(T (&)[N]) { return N; }
 
@@ -48,7 +57,7 @@ constexpr const char *blk_names[] = {"BLOCK",     "CALL",     "LOOP",
 static_assert(array_size(blk_names) == int(category_t::CATMAX));
 
 // NAME [special part] [defs] [uses]
-std::ostream &operator<<(std::ostream &os, vertexprop_t v) {
+std::ostream &operator<<(std::ostream &os, const vertexprop_t v) {
   // NAME
   os << blk_names[int(v.cat())];
 
@@ -73,8 +82,12 @@ std::ostream &operator<<(std::ostream &os, vertexprop_t v) {
     os << " TO FUNC #" << call.nfunc;
     break;
   }
-  case category_t::LOOP:
+  case category_t::LOOP: {
+    loop_t loop = std::get<loop_t>(v.type());
+    os << " from " << loop.start << " to " << loop.stop << " step "
+       << loop.step;
     break;
+  }
   case category_t::IF:
     break;
   case category_t::SWITCH:
@@ -85,8 +98,21 @@ std::ostream &operator<<(std::ostream &os, vertexprop_t v) {
     break;
   case category_t::ACCESS:
     break;
-  case category_t::BREAK:
+  case category_t::BREAK: {
+    break_t b = std::get<break_t>(v.type());
+    switch (b.btp) {
+    case break_type_t::CONTINUE:
+      os << " [CONTINUE]";
+      break;
+    case break_type_t::BREAK:
+      os << " [BREAK]";
+      break;
+    default:
+      os << " [RETURN]";
+      break;
+    }
     break;
+  }
   default:
     throw std::runtime_error("Unknown category");
   }
@@ -108,221 +134,6 @@ std::ostream &operator<<(std::ostream &os, vertexprop_t v) {
   return os;
 }
 
-using vct = std::vector<svp>;
-using vcit = typename vct::iterator;
-
-// split tree to create controlgraph structure
-class split_tree_t {
-  const controlgraph_t &parent_;
-
-  // copy of config to possibly shake params individually
-  cfg::config cf_;
-
-  // number of function, this split tree is about in parent
-  int nfunc_;
-
-  // adjacency lists for vertices
-  // we have special illegal vertex 0, adj list of which is
-  // all top-level vertices
-  static constexpr int PSEUDO_VERTEX = 0;
-
-  std::vector<std::list<vertex_t>> adj_;
-  std::unordered_map<vertex_t, vertex_t> parent_of_;
-  std::unordered_map<vertex_t, svp> desc_of_;
-  std::unordered_set<vertex_t> bbs_;
-
-public:
-  split_tree_t(const controlgraph_t &p, const cfg::config &cf, int nfunc)
-      : parent_(p), cf_(cf), nfunc_(nfunc) {}
-
-  void process(vcit start, vcit fin) {
-    static_assert(PSEUDO_VERTEX == 0,
-                  "We will have problems here if pseudo tp is not 0");
-    assert(adj_.size() == 0 &&
-           "We will have problems here if process called more than once");
-    adj_.resize(fin - start + 1);
-    int vidx = 1;
-    parent_of_[PSEUDO_VERTEX] = ILLEGAL_VERTEX;
-    desc_of_[PSEUDO_VERTEX] = nullptr;
-
-    // initial seeds
-    for (vcit cur = start; cur != fin; ++cur, ++vidx) {
-      adj_[PSEUDO_VERTEX].push_back(vidx);
-      desc_of_[vidx] = *cur;
-      parent_of_[vidx] = PSEUDO_VERTEX;
-      if ((*cur)->is_block())
-        bbs_.insert(vidx);
-    }
-
-    // do splits
-    int nsplits = cfg::get(cf_, MS::SPLITS);
-    for (int i = 0; i < nsplits; ++i) {
-      int navail = bbs_.size();
-      auto bbit = bbs_.begin();
-      std::advance(bbit, cf_.rand_positive() % navail);
-      do_split(*bbit);
-    }
-
-    // assign variables
-    // add accblocks
-  }
-
-  // toplevel iterator
-  vertex_iter_t begin() const { return adj_[PSEUDO_VERTEX].begin(); }
-  vertex_iter_t end() const { return adj_[PSEUDO_VERTEX].end(); }
-
-  // childs iterator
-  vertex_iter_t begin_childs(vertex_t parent) const {
-    return adj_[parent].begin();
-  }
-  vertex_iter_t end_childs(vertex_t parent) const { return adj_[parent].end(); }
-
-  svp from_vertex(vertex_t v) const {
-    auto vit = desc_of_.find(v);
-    if (vit == desc_of_.end())
-      throw std::runtime_error("Vertex not found");
-    return vit->second;
-  }
-
-  std::string varname(va::variable_t v) const {
-    return parent_.varname(nfunc_, v.id);
-  }
-
-  // tree-like print of controlgraph
-  void dump(std::ostream &os) const {
-    using stackelem_t = std::pair<int, vertex_t>;
-    std::stack<stackelem_t> s;
-    for (auto tl : adj_[PSEUDO_VERTEX])
-      s.push(std::make_pair(0, tl));
-    while (!s.empty()) {
-      auto [level, nvert] = s.top();
-      s.pop();
-
-      for (int i = 0; i < level; i++)
-        os << " ";
-      os << *from_vertex(nvert) << "\n";
-
-      for (auto chvert : adj_[nvert])
-        s.push(std::make_pair(level + 2, chvert));
-    }
-  }
-
-private:
-  template <typename It> It add_block(It pos, vertex_t parent) {
-    int nblock = adj_.size();
-    assert(parent < nblock);
-    adj_.emplace_back();
-    svp prop = create_vprop<block_t>(*this, nblock);
-
-    It ret;
-    if (adj_[parent].empty()) {
-      adj_[parent].push_back(nblock);
-      ret = adj_[parent].begin();
-    } else
-      ret = adj_[parent].insert(pos, nblock);
-
-    desc_of_[nblock] = prop;
-    parent_of_[nblock] = parent;
-    bbs_.insert(nblock);
-    return ret;
-  }
-
-  // turns anything at nblock into T
-  template <typename T, typename... Args>
-  void turn_block(int nblock, Args &&... args) {
-    desc_of_[nblock] =
-        create_vprop<T>(*this, nblock, std::forward<Args>(args)...);
-    if constexpr (T::cat != category_t::BLOCK) {
-      bbs_.erase(nblock);
-    } else {
-      bbs_.insert(nblock);
-    }
-  }
-
-  void do_split(int bb_under_split) {
-    assert(bb_under_split != PSEUDO_VERTEX);
-    assert(parent_of_.find(bb_under_split) != parent_of_.end());
-
-    // 1. find position before this block in list of childs of its parent
-    int nbbp = parent_of_[bb_under_split];
-
-    auto nbit = adj_[nbbp].begin();
-    for (; nbit != adj_[nbbp].end(); ++nbit)
-      if (*nbit == bb_under_split)
-        break;
-
-    if (nbit == adj_[nbbp].end())
-      throw std::runtime_error("Not found in list of childs of its parent");
-
-    // 2. add several more blocks
-    int naddblocks = cfg::get(cf_, CN::ADDBLOCKS);
-    if (naddblocks > 0) {
-      auto nbnext = nbit;
-      for (int i = 0; i < naddblocks; ++i)
-        nbnext = add_block(nbnext, nbbp);
-      std::advance(nbit, cf_.rand_positive() % naddblocks);
-      bb_under_split = *nbit;
-    }
-
-    // 3. Either:
-    //   3.1 turn block into container and add childs
-    //   3.2 turn block into special block
-    if (cfg::get(cf_, CN::EXPANDCONT)) {
-      int nchilds = 1;
-      int cont_type = cfg::get(cf_, CN::CONTPROB);
-      switch (cont_type) {
-      case CNC_IF:
-        turn_block<if_t>(bb_under_split);
-        nchilds = cfg::get(cf_, CN::NBRANCHES_IF);
-        break;
-      case CNC_FOR:
-        turn_block<loop_t>(bb_under_split);
-        break;
-      case CNC_SWITCH:
-        turn_block<switch_t>(bb_under_split);
-        nchilds = cfg::get(cf_, CN::NBRANCHES_IF);
-        break;
-      case CNC_REGION:
-        turn_block<region_t>(bb_under_split);
-        nchilds = cfg::get(cf_, CN::NBRANCHES_IF);
-        break;
-      default:
-        throw std::runtime_error("Unknown container");
-      }
-      std::stack<int> create_childs;
-      if (desc_of_[bb_under_split]->is_branching()) {
-        for (int i = 0; i < nchilds; ++i) {
-          auto nb = add_block(adj_[bb_under_split].begin(), bb_under_split);
-          turn_block<branching_t>(*nb);
-          create_childs.push(*nb);
-        }
-      } else
-        create_childs.push(bb_under_split);
-      while (!create_childs.empty()) {
-        int pbb = create_childs.top();
-        assert(pbb < int(adj_.size()));
-        create_childs.pop();
-        add_block(adj_[pbb].begin(), pbb);
-      }
-    } else {
-      int block_type = cfg::get(cf_, CN::BLOCKPROB);
-      switch (block_type) {
-      case CNB_BREAK:
-        break;
-      case CNB_CCALL:
-        break;
-      case CNB_ICALL:
-        break;
-      default:
-        throw std::runtime_error("Unknown block");
-      }
-    }
-  }
-};
-
-void split_tree_deleter_t::operator()(split_tree_t *pst) { delete pst; }
-
-// this needs to be here becuase parent_ shall be full type
 std::string vertexprop_t::varname(va::variable_t v) const {
   return parent_.varname(v);
 }
@@ -373,6 +184,8 @@ controlgraph_t::controlgraph_t(cfg::config &&cf,
   }
 }
 
+int controlgraph_t::nfuncs() const { return cgraph_->nfuncs(); }
+
 vertex_iter_t controlgraph_t::begin(int nfunc) const {
   return strees_[nfunc]->begin();
 }
@@ -389,12 +202,28 @@ vertex_iter_t controlgraph_t::end_childs(int nfunc, vertex_t parent) const {
   return strees_[nfunc]->end_childs(parent);
 }
 
-svp controlgraph_t::from_vertex(int nfunc, vertex_t v) const {
+shared_vp_t controlgraph_t::from_vertex(int nfunc, vertex_t v) const {
   return strees_[nfunc]->from_vertex(v);
 }
 
 std::string controlgraph_t::varname(int nfunc, int vid) const {
   return vassign_->get_name(vid, nfunc);
+}
+
+int controlgraph_t::random_callee(int nfunc, call_type_t) const {
+  // TODO: fix after callgraph support (shall be call-type related)
+  cg::calltype_t mask = cg::calltype_t::CONDITIONAL;
+
+  auto it = cgraph_->callees_begin(nfunc, mask);
+  auto eit = cgraph_->callees_end(nfunc, mask);
+
+  int dist = std::distance(it, eit);
+
+  if (dist == 0)
+    return -1;
+
+  std::advance(it, config_.rand_positive() % dist);
+  return *it;
 }
 
 void controlgraph_t::dump(std::ostream &os) const {
@@ -405,6 +234,32 @@ void controlgraph_t::dump(std::ostream &os) const {
     t->dump(os);
     os << "---" << std::endl << std::endl;
   }
+}
+
+void controlgraph_t::add_vars(int cntp, int nfunc, vertexprop_t &vp) const {
+  auto vars_begin = vassign_->fv_begin(nfunc);
+  auto vars_end = vassign_->fv_end(nfunc);
+  int nvars = vars_end - vars_begin;
+
+  int nuds = cfg::get(config_, cntp);
+  for (int i = 0; i < nuds; ++i) {
+    int vid = *(vars_begin + (config_.rand_positive() % nvars));
+    vp.add_var(cntp, vassign_->at(vid));
+    // TODO: +all dependent
+  }
+}
+
+void controlgraph_t::assign_vars_to(int nfunc, vertexprop_t &vp) const {
+  if (vp.cat() == category_t::LOOP) {
+    // we have very special case for loops
+    return;
+  }
+
+  if (vp.allow_defs())
+    add_vars(int(CN::DEFS), nfunc, vp);
+
+  if (vp.allow_uses())
+    add_vars(int(CN::USES), nfunc, vp);
 }
 
 } // namespace cn

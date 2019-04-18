@@ -54,6 +54,11 @@ class callgraph_t;
 
 namespace va {
 
+using acc_cont_t = std::vector<int>;
+using accit_t = typename acc_cont_t::const_iterator;
+using perm_cont_t = std::vector<int>;
+using permit_t = typename perm_cont_t::const_iterator;
+
 class varassign_t final {
   cfg::config config_;
   std::shared_ptr<tg::typegraph_t> tgraph_;
@@ -84,12 +89,12 @@ class varassign_t final {
 
     // accessor idxs
     // array or struct with array members vx may have accessors iy, iz, ....
-    std::unordered_map<int, std::vector<int>> accidxs_;
+    std::unordered_map<int, acc_cont_t> accidxs_;
 
     // permutator idxs
     // array vx[iz] may have permutator py[iz] (also array) like this:
     // vx[py[iz]] we may have a lot of stacked permutators vx[pa[pb[pc[iz]]]]
-    std::unordered_map<int, std::vector<int>> permutators_;
+    std::unordered_map<int, perm_cont_t> permutators_;
 
     void register_index(int iid) {
       indexes_.insert(iid);
@@ -112,8 +117,45 @@ class varassign_t final {
 public:
   explicit varassign_t(cfg::config &&, std::shared_ptr<tg::typegraph_t>,
                        std::shared_ptr<cg::callgraph_t>);
+
+  // iterators for all vars
+  // value type is variable_t i.e. variable + type
   auto begin() const { return vars_.cbegin(); }
   auto end() const { return vars_.cend(); }
+
+  variable_t at(int n) const { return vars_[n]; }
+
+  // iterators for specific function vars (useful for controlgraph split)
+  // value type is int, i.e. index in all vars
+  auto fv_begin(int nfunc) const { return fvars_[nfunc].vars_.cbegin(); }
+  auto fv_end(int nfunc) const { return fvars_[nfunc].vars_.cend(); }
+
+  bool have_pointee(int nfunc, int vid) const {
+    auto &ps = fvars_[nfunc].pointees_;
+    return ps.find(vid) != ps.end();
+  }
+
+  int pointee(int nfunc, int vid) const {
+    return fvars_[nfunc].pointees_.find(vid)->second;
+  }
+
+  bool have_accs(int nfunc, int vid) const {
+    auto &accs = fvars_[nfunc].accidxs_;
+    auto accit = accs.find(vid);
+    if (accit == accs.end())
+      return false;
+    return !accit->second.empty();
+  }
+
+  accit_t accs_begin(int nfunc, int vid) const {
+    auto accit = fvars_[nfunc].accidxs_.find(vid);
+    return accit->second.cbegin();
+  }
+
+  accit_t accs_end(int nfunc, int vid) const {
+    auto accit = fvars_[nfunc].accidxs_.find(vid);
+    return accit->second.cend();
+  }
 
   std::string get_name(int vid, int funcid) const;
 

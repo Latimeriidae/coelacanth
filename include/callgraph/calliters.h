@@ -34,40 +34,61 @@ template <typename eit> class nbr_iterator_t {
 
 public:
   nbr_iterator_t(const callgraph_t *cgp, eit ei, calltype_t mask)
-      : cgp_(cgp), ei_(ei), mask_(mask) {}
+      : cgp_(cgp), ei_(ei), mask_(mask) {
+    // TODO: we shall here skip from eit all that is not conform to mask
+    // say function have outedges: c c i c d d c i
+    // then on indirect mask we shall skip first 2 cs
+  }
+
+  nbr_iterator_t(const nbr_iterator_t &) = default;
+  nbr_iterator_t &operator=(const nbr_iterator_t &) = default;
+
+  nbr_iterator_t(nbr_iterator_t &&) = default;
+  nbr_iterator_t &operator=(nbr_iterator_t &&) = default;
+
   using iterator_type = nbr_iterator_t;
-  using iterator_category = typename eit::iterator_category;
+
+  // never random access because it may skip some functions under the mask
+  using iterator_category = std::bidirectional_iterator_tag;
+
   using value_type = vertex_t;
+  using difference_type = int;
+  using pointer = value_type *;
+  using reference = value_type &;
 
   nbr_iterator_t &operator++() {
+    // TODO: skip along the way
     ++ei_;
     return *this;
   }
 
   nbr_iterator_t operator++(int) {
     auto temp(*this);
-    ++ei_;
+    ++(*this);
     return temp;
   }
 
   nbr_iterator_t &operator+=(int n) {
-    ei_ += n;
+    for (int i = 0; i < n; ++i)
+      ++(*this);
     return *this;
   }
 
   nbr_iterator_t &operator--() {
+    // TODO: skip along the way
     --ei_;
     return *this;
   }
 
   nbr_iterator_t operator--(int) {
     auto temp(*this);
-    --ei_;
+    --(*this);
     return temp;
   }
 
   nbr_iterator_t &operator-=(int n) {
-    ei_ -= n;
+    for (int i = 0; i < n; ++i)
+      --(*this);
     return *this;
   }
 

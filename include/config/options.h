@@ -82,7 +82,13 @@ enum class CN {
   NBRANCHES_IF,
   NBRANCHES_SWITCH,
   NBRANCHES_RGN,
+  FOR_START,
+  FOR_SIZE,
+  FOR_STEP,
   BLOCKPROB,
+  BREAKTYPE,
+  DEFS,
+  USES,
   MAX
 };
 
@@ -122,6 +128,9 @@ enum { CNC_IF, CNC_FOR, CNC_SWITCH, CNC_REGION, CNC_MAX };
 
 // for CN::BLOCKPROB
 enum { CNB_BREAK, CNB_CCALL, CNB_ICALL, CNB_MAX };
+
+// for CN::BREAKTYPE
+enum { CNBR_BREAK, CNBR_CONT, CNBR_RET, CNBR_MAX };
 
 #endif
 
@@ -206,8 +215,15 @@ OPTPROBF(CN::CONTPROB, (probf_t{40, 80, 90, 100}), CNC_MAX,
 OPTDIAP(CN::NBRANCHES_IF, 2, 6, "Amount of branches inside if");
 OPTDIAP(CN::NBRANCHES_SWITCH, 6, 10, "Amount of branches inside switch");
 OPTDIAP(CN::NBRANCHES_RGN, 4, 7, "Amount of branches inside region");
-OPTPROBF(CN::BLOCKPROB, (probf_t{40, 100}), CNB_MAX,
-         "Probability function for calls");
+OPTPROBF(CN::BLOCKPROB, (probf_t{40, 70, 100}), CNB_MAX,
+         "Probability function for special blocks (calls, breaks)");
+OPTDIAP(CN::FOR_START, 0, 20, "Starting value of loops");
+OPTDIAP(CN::FOR_SIZE, 10, 50, "Number of iterations from start");
+OPTDIAP(CN::FOR_STEP, 1, 3, "Step size of loops");
+OPTPROBF(CN::BREAKTYPE, (probf_t{40, 80, 100}), CNBR_MAX,
+         "Probability function for breaktypes");
+OPTDIAP(CN::DEFS, 2, 4, "Number of defs");
+OPTDIAP(CN::USES, 4, 6, "Number of uses");
 
 #undef OPTPFLAG
 #undef OPTPROBF
