@@ -44,158 +44,88 @@ std::mutex mut_dbgs;
 
 void consumer_thread_func();
 
-// TODO: this function grown over 200 lines long. Of course it is linear, but
-// nevertheless it shall be broken into logical parts
-int main(int argc, char **argv) {
-  cfg::config default_config = cfg::read_global_config(argc, argv);
+using typegraph_future_t =
+    decltype(std::packaged_task<tg_task_type>{}.get_future());
+using callgraph_future_t =
+    decltype(std::packaged_task<cg_task_type>{}.get_future());
+using varassign_future_t =
+    decltype(std::packaged_task<va_task_type>{}.get_future());
+using contgraph_future_t =
+    decltype(std::packaged_task<cn_task_type>{}.get_future());
 
-  if (!default_config.quiet())
+using typegraph_sp_t = decltype(typegraph_future_t{}.get());
+using callgraph_sp_t = decltype(callgraph_future_t{}.get());
+using varassign_sp_t = decltype(varassign_future_t{}.get());
+using contgraph_sp_t = decltype(contgraph_future_t{}.get());
+
+//------------------------------------------------------------------------------
+//
+// Coerunner: putting main coelacanth tasks into queue in order
+//
+//------------------------------------------------------------------------------
+
+class coerunner_t {
+  std::unique_ptr<cfg::config> default_config_;
+  std::vector<std::thread> consumers_;
+  typegraph_future_t future_typegraph_;
+  typegraph_sp_t typegraph_;
+  callgraph_future_t future_callgraph_;
+  callgraph_sp_t callgraph_;
+  std::vector<varassign_future_t> future_assigns_;
+  std::vector<varassign_sp_t> assigns_;
+  std::vector<std::vector<contgraph_future_t>> future_contgraphs_;
+  std::vector<std::vector<contgraph_sp_t>> contgraphs_;
+  int nvar_;
+  int nsplits_;
+  int nlocs_;
+  int narith_;
+
+public:
+  coerunner_t() {}
+  void run(int argc, char **argv);
+
+private:
+  void run_typegraph();
+  void run_callgraph();
+  void run_varassign();
+  void run_controlgraph();
+  void run_locir();
+  void run_exprir();
+};
+
+void coerunner_t::run(int argc, char **argv) {
+  default_config_ =
+      std::make_unique<cfg::config>(cfg::read_global_config(argc, argv));
+
+  if (!default_config_->quiet())
     std::cout << "Coelacanth info: git hash = " << GIT_COMMIT_HASH
               << ", built on " << TIMESTAMP << std::endl;
 
-  if (default_config.dumps()) {
+  if (default_config_->dumps()) {
     std::ofstream of("initial.cfg");
-    default_config.dump(of);
+    default_config_->dump(of);
   }
 
-  // consumer threads
-  std::vector<std::thread> consumers;
-  auto nthreads = cfg::get(default_config, PG::CONSUMERS);
+  nvar_ = cfg::get(*default_config_, PG::VAR);
+  nsplits_ = cfg::get(*default_config_, PG::SPLITS);
+  nlocs_ = cfg::get(*default_config_, PG::LOCS);
+  narith_ = cfg::get(*default_config_, PG::ARITH);
 
-  if (!default_config.quiet())
+  // consumer threads
+  auto nthreads = cfg::get(*default_config_, PG::CONSUMERS);
+
+  if (!default_config_->quiet())
     std::cout << "Starting " << nthreads << " consumer threads" << std::endl;
 
   for (int i = 0; i < nthreads; ++i)
-    consumers.emplace_back(consumer_thread_func);
+    consumers_.emplace_back(consumer_thread_func);
 
-  // put typegraph task
-  int tgseed = default_config.rand_positive();
-
-  auto &&[typegraph_task, typegraph_fut] =
-      create_task<tg_task_type>(typegraph_create, tgseed, default_config);
-
-  {
-    std::lock_guard<std::mutex> lk{task_queue_mutex};
-    task_queue.push(std::move(typegraph_task));
-  }
-
-  // now we need typegraph to create callgraph
-  auto tgraph = typegraph_fut.get();
-
-  if (default_config.dumps()) {
-    std::ofstream of("initial.types");
-    typegraph_dump(tgraph, of);
-  }
-
-  int cgseed = default_config.rand_positive();
-
-  // put callgraph task
-  auto &&[callgraph_task, callgraph_fut] = create_task<cg_task_type>(
-      callgraph_create, cgseed, default_config, tgraph);
-
-  {
-    std::lock_guard<std::mutex> lk{task_queue_mutex};
-    task_queue.push(std::move(callgraph_task));
-  }
-
-  int nvar = cfg::get(default_config, PG::VAR);
-  int nsplits = cfg::get(default_config, PG::SPLITS);
-  int nlocs = cfg::get(default_config, PG::LOCS);
-  int narith = cfg::get(default_config, PG::ARITH);
-
-  // now we need callgraph to start creating varassigns
-  auto cgraph = callgraph_fut.get();
-
-  if (default_config.dumps()) {
-    std::ofstream of("initial.calls");
-    callgraph_dump(cgraph, of);
-  }
-
-  using va_fut_t =
-      decltype(create_task<va_task_type>(varassign_create, 0, default_config,
-                                         tgraph, cgraph)
-                   .second);
-  using va_sp_t = decltype(va_fut_t{}.get());
-
-  std::vector<va_fut_t> vafuts;
-  std::vector<va_sp_t> vassigns;
-
-  // put varassign tasks
-  for (int r_var = 0; r_var < nvar; ++r_var) {
-    int vaseed = default_config.rand_positive();
-    auto &&[vassign_task, vassign_fut] = create_task<va_task_type>(
-        varassign_create, vaseed, default_config, tgraph, cgraph);
-    {
-      std::lock_guard<std::mutex> lk{task_queue_mutex};
-      task_queue.push(std::move(vassign_task));
-    }
-    vafuts.emplace_back(std::move(vassign_fut));
-  }
-
-  using cn_fut_t =
-      decltype(create_task<cn_task_type>(controlgraph_create, 0, default_config,
-                                         tgraph, cgraph, va_sp_t{})
-                   .second);
-  using cn_sp_t = decltype(cn_fut_t{}.get());
-
-  std::vector<std::vector<cn_fut_t>> cnfuts(nvar);
-  std::vector<cn_sp_t> cfgs;
-
-  // put controlgraph tasks
-  for (int r_var = 0; r_var < nvar; ++r_var) {
-    auto vassign = vafuts[r_var].get();
-
-    if (default_config.dumps()) {
-      std::ostringstream os;
-      os << "varassign." << r_var;
-      std::ofstream of(os.str());
-      varassign_dump(vassign, of);
-    }
-
-    for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
-      int cnseed = default_config.rand_positive();
-      auto &&[cn_task, cn_fut] = create_task<cn_task_type>(
-          controlgraph_create, cnseed, default_config, tgraph, cgraph, vassign);
-      {
-        std::lock_guard<std::mutex> lk{task_queue_mutex};
-        task_queue.push(std::move(cn_task));
-      }
-      cnfuts[r_var].emplace_back(std::move(cn_fut));
-    }
-
-    vassigns.emplace_back(std::move(vassign));
-  }
-
-  // put locIR tasks
-  for (int r_var = 0; r_var < nvar; ++r_var)
-    for (int r_splits = 0; r_splits < nsplits; ++r_splits) {
-      auto vassign = vassigns[r_var];
-      cn_sp_t cfgraph;
-      cfgraph = cnfuts[r_var][r_splits].get();
-      if (default_config.dumps()) {
-        std::ostringstream os;
-        os << "controlgraph." << r_var << "." << r_splits;
-        std::ofstream of(os.str());
-        controlgraph_dump(cfgraph, of);
-      }
-
-      for (int r_locs = 0; r_locs < nlocs; ++r_locs) {
-        // create locIR
-        // TODO: put task to queue
-      }
-
-      if (r_var == 0)
-        cfgs.emplace_back(std::move(cfgraph));
-    }
-
-  // put exprIR tasks
-  for (int r_var = 0; r_var < nvar; ++r_var)
-    for (int r_splits = 0; r_splits < nsplits; ++r_splits)
-      for (int r_locs = 0; r_locs < nlocs; ++r_locs)
-        for (int r_exprs = 0; r_exprs < narith; ++r_exprs) {
-          // create exprIR
-          // TODO: put task to queue
-        }
+  run_typegraph();
+  run_callgraph();
+  run_varassign();
+  run_controlgraph();
+  run_locir();
+  run_exprir();
 
   // put final task
   task_t sentinel{[] { return -1; }};
@@ -205,11 +135,131 @@ int main(int argc, char **argv) {
   }
 
   for (int i = 0; i < nthreads; ++i)
-    consumers[i].join();
+    consumers_[i].join();
 
-  if (!default_config.quiet())
+  if (!default_config_->quiet())
     std::cout << "Done" << std::endl;
 }
+
+// put typegraph task
+void coerunner_t::run_typegraph() {
+  int tgseed = default_config_->rand_positive();
+
+  auto &&[typegraph_task, typegraph_fut] =
+      create_task<tg_task_type>(typegraph_create, tgseed, *default_config_);
+
+  future_typegraph_ = std::move(typegraph_fut);
+
+  {
+    std::lock_guard<std::mutex> lk{task_queue_mutex};
+    task_queue.push(std::move(typegraph_task));
+  }
+}
+
+void coerunner_t::run_callgraph() {
+  typegraph_ = future_typegraph_.get();
+
+  if (default_config_->dumps()) {
+    std::ofstream of("initial.types");
+    typegraph_dump(typegraph_, of);
+  }
+
+  int cgseed = default_config_->rand_positive();
+
+  // put callgraph task
+  auto &&[callgraph_task, callgraph_fut] = create_task<cg_task_type>(
+      callgraph_create, cgseed, *default_config_, typegraph_);
+
+  future_callgraph_ = std::move(callgraph_fut);
+
+  {
+    std::lock_guard<std::mutex> lk{task_queue_mutex};
+    task_queue.push(std::move(callgraph_task));
+  }
+}
+
+// put varassign tasks
+void coerunner_t::run_varassign() {
+  callgraph_ = future_callgraph_.get();
+
+  if (default_config_->dumps()) {
+    std::ofstream of("initial.calls");
+    callgraph_dump(callgraph_, of);
+  }
+
+  for (int r_var = 0; r_var < nvar_; ++r_var) {
+    int vaseed = default_config_->rand_positive();
+    auto &&[vassign_task, vassign_fut] = create_task<va_task_type>(
+        varassign_create, vaseed, *default_config_, typegraph_, callgraph_);
+
+    future_assigns_.emplace_back(std::move(vassign_fut));
+
+    {
+      std::lock_guard<std::mutex> lk{task_queue_mutex};
+      task_queue.push(std::move(vassign_task));
+    }
+  }
+}
+
+void coerunner_t::run_controlgraph() {
+  future_contgraphs_.resize(nvar_);
+  contgraphs_.resize(nvar_);
+  for (int r_var = 0; r_var < nvar_; ++r_var) {
+    auto vassign = future_assigns_[r_var].get();
+
+    if (default_config_->dumps()) {
+      std::ostringstream os;
+      os << "varassign." << r_var;
+      std::ofstream of(os.str());
+      varassign_dump(vassign, of);
+    }
+
+    for (int r_splits = 0; r_splits < nsplits_; ++r_splits) {
+      int cnseed = default_config_->rand_positive();
+      auto &&[cn_task, cn_fut] = create_task<cn_task_type>(
+          controlgraph_create, cnseed, *default_config_, typegraph_, callgraph_,
+          vassign);
+      {
+        std::lock_guard<std::mutex> lk{task_queue_mutex};
+        task_queue.push(std::move(cn_task));
+      }
+      future_contgraphs_[r_var].emplace_back(std::move(cn_fut));
+    }
+
+    assigns_.emplace_back(std::move(vassign));
+  }
+}
+
+void coerunner_t::run_locir() {
+  for (int r_var = 0; r_var < nvar_; ++r_var) {
+    for (int r_split = 0; r_split < nsplits_; ++r_split) {
+      auto cngraph = future_contgraphs_[r_var][r_split].get();
+
+      if (default_config_->dumps()) {
+        std::ostringstream os;
+        os << "controlgraph." << r_var << "." << r_split;
+        std::ofstream of(os.str());
+        controlgraph_dump(cngraph, of);
+      }
+
+      for (int r_loc = 0; r_loc < nlocs_; ++r_loc) {
+        // TODO: put LocIR tasks, store futures
+      }
+
+      contgraphs_[r_var].emplace_back(std::move(cngraph));
+    }
+  }
+}
+
+void coerunner_t::run_exprir() {
+  // TODO: put ExprIR tasks
+}
+
+//------------------------------------------------------------------------------
+//
+// consumer_thread_func -- entry point for queue consumer thread
+//
+//------------------------------------------------------------------------------
 
 void consumer_thread_func() {
   for (;;) {
@@ -229,4 +279,15 @@ void consumer_thread_func() {
       return;
     }
   }
+}
+
+//------------------------------------------------------------------------------
+//
+// main programm entry point
+//
+//------------------------------------------------------------------------------
+
+int main(int argc, char **argv) {
+  coerunner_t programm;
+  programm.run(argc, argv);
 }
