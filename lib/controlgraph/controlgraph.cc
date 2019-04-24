@@ -161,7 +161,7 @@ controlgraph_t::controlgraph_t(cfg::config &&cf,
     assert(cgvi < cgraph_->nfuncs());
 
     // can not use make_unique here (because we have custom deleter for stt)
-    auto *pst = new split_tree_t{*this, config_, cgvi};
+    auto *pst = new split_tree_t{*this, config_, vassign_, cgvi};
     auto st = stt{pst};
     strees_[cgvi] = std::move(st);
 
@@ -234,32 +234,6 @@ void controlgraph_t::dump(std::ostream &os) const {
     t->dump(os);
     os << "---" << std::endl << std::endl;
   }
-}
-
-void controlgraph_t::add_vars(int cntp, int nfunc, vertexprop_t &vp) const {
-  auto vars_begin = vassign_->fv_begin(nfunc);
-  auto vars_end = vassign_->fv_end(nfunc);
-  int nvars = vars_end - vars_begin;
-
-  int nuds = cfg::get(config_, cntp);
-  for (int i = 0; i < nuds; ++i) {
-    int vid = *(vars_begin + (config_.rand_positive() % nvars));
-    vp.add_var(cntp, vassign_->at(vid));
-    // TODO: +all dependent
-  }
-}
-
-void controlgraph_t::assign_vars_to(int nfunc, vertexprop_t &vp) const {
-  if (vp.cat() == category_t::LOOP) {
-    // we have very special case for loops
-    return;
-  }
-
-  if (vp.allow_defs())
-    add_vars(int(CN::DEFS), nfunc, vp);
-
-  if (vp.allow_uses())
-    add_vars(int(CN::USES), nfunc, vp);
 }
 
 } // namespace cn

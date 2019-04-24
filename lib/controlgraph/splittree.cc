@@ -14,12 +14,13 @@
 #include "controlgraph.h"
 #include "controltypes.h"
 #include "splittree.h"
+#include "varassign/varassign.h"
 
 namespace cn {
 
 split_tree_t::split_tree_t(const controlgraph_t &p, const cfg::config &cf,
-                           int nfunc)
-    : parent_(p), cf_(cf), nfunc_(nfunc) {}
+                           std::shared_ptr<va::varassign_t> va, int nfunc)
+    : parent_(p), cf_(cf), vassign_(va), nfunc_(nfunc) {}
 
 void split_tree_t::process(vcit start, vcit fin) {
   static_assert(PSEUDO_VERTEX == 0,
@@ -50,16 +51,19 @@ void split_tree_t::process(vcit start, vcit fin) {
   }
 
   // assign variables
-  for (size_t i = 1; i < adj_.size(); ++i) {
-    // It is too dangerous to make such a hole, like someone else changing
-    // split tree properties. That is why parent only gets copy and we then
-    // silently replacing everything with it
-    vertexprop_t vp = *desc_of_[i];
-    parent_.assign_vars_to(nfunc_, vp);
-    desc_of_[i] = std::make_shared<const vertexprop_t>(vp);
-  }
+  for (size_t i = 1; i < adj_.size(); ++i)
+    assign_vars_to(desc_of_[i]);
 
   // add accblocks
+  // THIS -> CHILDS into THIS -> ACCS, ACC -> CHILD
+  size_t cursize = adj_.size();
+  for (size_t i = 1; i < cursize; ++i) {
+    // for all childs of current block
+    // counting accs
+    // creating accblock with index vars
+    // making child into child of accblock
+    // replacing child with its accblock in parent
+  }
 }
 
 // vertex property from desc
@@ -246,6 +250,33 @@ void split_tree_t::do_split(int bb_under_split) {
     add_container(bb_under_split);
   else
     add_special(bb_under_split);
+}
+
+void split_tree_t::add_vars(int cntp, shared_vp_t svp) {
+  auto vars_begin = vassign_->fv_begin(nfunc_);
+  auto vars_end = vassign_->fv_end(nfunc_);
+  int nvars = vars_end - vars_begin;
+
+  int nuds = cfg::get(cf_, cntp);
+  for (int i = 0; i < nuds; ++i) {
+    int vid = *(vars_begin + (cf_.rand_positive() % nvars));
+    auto nsvp = std::const_pointer_cast<vertexprop_t>(svp);
+    nsvp->add_var(cntp, vassign_->at(vid));
+    // TODO: +all dependent
+  }
+}
+
+void split_tree_t::assign_vars_to(shared_vp_t svp) {
+  if (svp->cat() == category_t::LOOP) {
+    // we have very special case for loops
+    return;
+  }
+
+  if (svp->allow_defs())
+    add_vars(int(CN::DEFS), svp);
+
+  if (svp->allow_uses())
+    add_vars(int(CN::USES), svp);
 }
 
 void split_tree_deleter_t::operator()(split_tree_t *pst) { delete pst; }

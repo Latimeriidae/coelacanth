@@ -100,11 +100,6 @@ public:
   int random_callee(int nfunc, call_type_t) const;
 
   void dump(std::ostream &os) const;
-
-  // public but not recommended for unenlightened usage interface
-public:
-  void add_vars(int cntp, int nfunc, vertexprop_t &vp) const;
-  void assign_vars_to(int nfunc, vertexprop_t &vp) const;
 };
 
 } // namespace cn

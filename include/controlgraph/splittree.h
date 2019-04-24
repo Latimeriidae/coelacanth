@@ -22,6 +22,10 @@
 
 #include "controltypes.h"
 
+namespace va {
+class varassign_t;
+}
+
 namespace cn {
 
 class controlgraph_t;
@@ -33,6 +37,9 @@ class split_tree_t {
 
   // copy of config to possibly shake params individually
   cfg::config cf_;
+
+  // varstorage for given split tree (shared with parent)
+  std::shared_ptr<va::varassign_t> vassign_;
 
   // number of function, this split tree is about in parent
   int nfunc_;
@@ -48,7 +55,8 @@ class split_tree_t {
   std::unordered_set<vertex_t> bbs_;
 
 public:
-  split_tree_t(const controlgraph_t &p, const cfg::config &cf, int nfunc);
+  split_tree_t(const controlgraph_t &p, const cfg::config &cf,
+               std::shared_ptr<va::varassign_t> va, int nfunc);
 
   void process(vcit start, vcit fin);
 
@@ -81,6 +89,8 @@ private:
   void add_container(int bb_under_split);
   void add_special(int bb_under_split);
   void do_split(int bb_under_split);
+  void add_vars(int cntp, shared_vp_t svp);
+  void assign_vars_to(shared_vp_t svp);
 };
 
 //------------------------------------------------------------------------------

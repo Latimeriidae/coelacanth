@@ -194,6 +194,7 @@ vertexprop_t typegraph_t::get_random_index_type() const {
 vertexprop_t typegraph_t::get_random_perm_type(int nelems) const {
   assert(nelems > 0);
   assert(perm_vs_.size() >= size_t(nelems));
+  assert(perm_vs_[nelems - 1].size() != 0);
   int idx = config_.rand_positive() % perm_vs_[nelems - 1].size();
   vertex_t v = perm_vs_[nelems - 1][idx];
   return graph_[v];
@@ -513,8 +514,9 @@ void typegraph_t::choose_perms_idxs() {
 
   // now we need to create all permutations up to max array index if they aren't
   // exist
+  assert(szmin > 0);
   auto sv = *idx_vs_.begin();
-  for (int cur = szmin; cur != szmax; ++cur)
+  for (int cur = szmin; cur <= szmax; ++cur)
     if (perm_vs_[cur - 1].empty()) {
       auto sva = boost::add_vertex(graph_);
       graph_[sva] = create_vprop<array_t>(sva, cur);
