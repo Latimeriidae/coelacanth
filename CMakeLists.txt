@@ -13,9 +13,9 @@ include(cmake/time-stamp.cmake)
 
 # build flags
 if (DEFINED DEBUG_BUILD AND DEBUG_BUILD STREQUAL "YES")
-  set(OPTIMIZATION_LEVEL "-O0 -g3 -ggdb -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR}")
+  set(OPTIMIZATION_LEVEL "-O0 -g3 -ggdb -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR} -pthread")
 else()
-  set(OPTIMIZATION_LEVEL "-O3 -DNDEBUG -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR}")
+  set(OPTIMIZATION_LEVEL "-O3 -DNDEBUG -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR} -pthread")
 endif()
 
 set(CMAKE_C_FLAGS ${OPTIMIZATION_LEVEL})
