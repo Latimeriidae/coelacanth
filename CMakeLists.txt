@@ -35,7 +35,7 @@ endforeach()
 
 # final executable
 add_executable(coelacanth coelacanth.cc)
-target_link_libraries(coelacanth ${LIBLIST} boost_program_options)
+target_link_libraries(coelacanth ${LIBLIST} boost_graph boost_regex boost_program_options)
 add_dependencies (coelacanth timestamp)
 
 install(TARGETS coelacanth DESTINATION bin)

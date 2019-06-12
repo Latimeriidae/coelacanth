@@ -30,8 +30,12 @@ class typegraph_t;
 }
 
 using tg_task_type = std::shared_ptr<tg::typegraph_t>(int, const cfg::config &);
+using tg_read_task_type = std::shared_ptr<tg::typegraph_t>(std::string,
+                                                           const cfg::config &);
 
 std::shared_ptr<tg::typegraph_t> typegraph_create(int, const cfg::config &);
+std::shared_ptr<tg::typegraph_t> typegraph_read(std::string,
+                                                const cfg::config &);
 void typegraph_dump(std::shared_ptr<tg::typegraph_t>, std::ostream &);
 
 // callgraph

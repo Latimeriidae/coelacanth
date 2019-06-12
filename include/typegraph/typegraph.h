@@ -67,6 +67,7 @@ private:
   // typegraph public interface
 public:
   explicit typegraph_t(cfg::config &&);
+  explicit typegraph_t(const cfg::config &, std::string);
 
   // vertex iterator (by descriptions)
   vertex_iter_t begin() const;
@@ -85,6 +86,7 @@ public:
 
   // debug dump in given stream
   void dump(std::ostream &) const;
+  void read(std::istream &);
 
   // type analysis helper
   int ntypes() const { return boost::num_vertices(graph_); }

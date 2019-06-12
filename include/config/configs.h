@@ -40,6 +40,17 @@ struct single {
   int val;
 };
 
+// option xxx with single bool value, default false
+// (it is true if -xxx present and false if -no-xxx present)
+struct single_bool {
+  bool val;
+};
+
+// option with single string value
+struct single_string {
+  std::string val;
+};
+
 // option with value from diap
 struct diap {
   int from;
@@ -62,7 +73,8 @@ struct pflag {
 };
 
 // option record is variant out of all option types
-using optrecord = std::variant<single, diap, probf, pflag>;
+using optrecord =
+    std::variant<single, single_bool, single_string, diap, probf, pflag>;
 
 } // namespace cfg
 
@@ -89,6 +101,7 @@ public:
   config(int seed, bool quiet, bool dumps, ormap_cit start, ormap_cit fin)
       : cfg_(start, fin), quiet_(quiet), dump_(dumps), mt_source(seed) {}
   int get(int id) const;
+  std::string gets(int id) const;
   std::pair<int, int> minmax(int id) const;
   size_t prob_size(int id) const;
   bool quiet() const { return quiet_; }
@@ -103,6 +116,10 @@ public:
 
 template <typename T> int get(const config &cfg, T id) {
   return cfg.get(static_cast<int>(id));
+}
+
+template <typename T> std::string gets(const config &cfg, T id) {
+  return cfg.gets(static_cast<int>(id));
 }
 
 template <typename T> std::pair<int, int> minmax(const config &cfg, T id) {

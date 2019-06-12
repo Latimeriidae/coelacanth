@@ -2,6 +2,20 @@
 //
 // Options
 //
+// coelacanth supports different modes of work
+//
+// programm-config:
+//   one can use it as random code generator (this is called default mode)
+//   but it can produce only call-graphs
+//   or use given pack of call-graphs
+//   this is called programm-config level options
+//
+// programm:
+//   modulo program-config whole programm options (like number of splits, etc)
+//   are here
+//
+// TODO: comment on other sections
+//
 //------------------------------------------------------------------------------
 //
 // This file is licensed after LGPL v3
@@ -13,10 +27,27 @@
 
 #if defined(OPTENUM)
 
-// programm level (from 0)
-enum class PG { CONSUMERS = 0, VAR, SPLITS, LOCS, ARITH, MAX };
+// program-config level
+enum class PGC {
+  STOP_ON_TG = 0,
+  USETG,
+  TGNAME,
+  STOP_ON_CG,
+  USECG,
+  CGNAME,
+  STOP_ON_VA,
+  USEVA,
+  VANAME,
+  STOP_ON_CN,
+  USECN,
+  CNNAME,
+  MAX
+};
 
-// typegraph level (from PG::MAX)
+// programm level
+enum class PG { CONSUMERS = int(PGC::MAX), VAR, SPLITS, LOCS, ARITH, MAX };
+
+// typegraph level
 enum class TG {
   START = int(PG::MAX),
   SEEDS,
@@ -136,6 +167,10 @@ enum { CNBR_BREAK, CNBR_CONT, CNBR_RET, CNBR_MAX };
 
 #if defined(OPREGISTRY)
 
+#define OPTBOOL(N, T)                                                          \
+  register_option(static_cast<int>(N), #N, single_bool{false}, T)
+#define OPTSTRING(N, V, T)                                                     \
+  register_option(static_cast<int>(N), #N, single_string{V}, T)
 #define OPTSINGLE(N, V, T)                                                     \
   register_option(static_cast<int>(N), #N, single{V}, T)
 #define OPTDIAP(N, V1, V2, T)                                                  \
@@ -145,14 +180,28 @@ enum { CNBR_BREAK, CNBR_CONT, CNBR_RET, CNBR_MAX };
 #define OPTPFLAG(N, V, M, T)                                                   \
   register_option(static_cast<int>(N), #N, pflag{V, M}, T, M)
 
-// programm-level
+// programm-config level
+OPTBOOL(PGC::STOP_ON_TG, "Stop after type graph is ready");
+OPTBOOL(PGC::USETG, "Do not generate type graph, use existing");
+OPTSTRING(PGC::TGNAME, "default.cf", "Specify type graph name to use");
+OPTBOOL(PGC::STOP_ON_CG, "Stop after call graph is ready");
+OPTBOOL(PGC::USECG, "Do not generate call graph, use existing");
+OPTSTRING(PGC::CGNAME, "default.cf", "Specify call graph name to use");
+OPTBOOL(PGC::STOP_ON_VA, "Stop after varassign is ready");
+OPTBOOL(PGC::USEVA, "Do not generate varassign, use existing");
+OPTSTRING(PGC::VANAME, "default.cf", "Specify varassign name to use");
+OPTBOOL(PGC::STOP_ON_CN, "Stop after control flow graph is ready");
+OPTBOOL(PGC::USECN, "Do not generate control flow graph, use existing");
+OPTSTRING(PGC::CNNAME, "default.cf", "Specify control flow graph name to use");
+
+// programm level
 OPTSINGLE(PG::CONSUMERS, 5, "Number of consumer threads");
 OPTSINGLE(PG::VAR, 2, "Number of varassign randomizations");
 OPTSINGLE(PG::SPLITS, 5, "Number of controlgraph randomizations");
 OPTSINGLE(PG::LOCS, 5, "Number of LocIR randomizations");
 OPTSINGLE(PG::ARITH, 10, "Number of ExprIR randomizations");
 
-// typegraph-level
+// typegraph level
 OPTSINGLE(TG::SEEDS, 20, "Number of typegraph seed nodes");
 OPTSINGLE(TG::SPLITS, 50, "Number of typegraph splits to perform");
 OPTPROBF(TG::CONTTYPE, (probf_t{50, 100}), TGC_MAX,
@@ -173,7 +222,7 @@ OPTSINGLE(
     TG::MORESCALARS, 0,
     "Add more top-level scalars (additional scalar for every type split)");
 
-// callgraph-level
+// callgraph level
 OPTDIAP(CG::MODULES, 2, 6, "Number of programm modules");
 OPTDIAP(CG::VERTICES, 15, 25, "Number of initial leaf and non-leaf functions");
 OPTPFLAG(CG::EDGESET, 6, 100, "Probability to set edge");

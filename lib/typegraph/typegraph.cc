@@ -131,6 +131,15 @@ typegraph_t::typegraph_t(cfg::config &&cf) : config_(std::move(cf)) {
   choose_perms_idxs();
 }
 
+// "read myself from file" ctor
+typegraph_t::typegraph_t(const cfg::config &cf, std::string fname)
+    : config_(cf) {
+  if (!config_.quiet())
+    std::cout << "Reading typegraph from file: " << fname << std::endl;
+  std::ifstream ifstr(fname);
+  read(ifstr);
+}
+
 vertex_iter_t typegraph_t::begin() const {
   auto [vi, vi_end] = boost::vertices(graph_);
   return vi;
@@ -168,6 +177,15 @@ void typegraph_t::dump(std::ostream &os) const {
   dp.property("label", boost::make_transform_value_property_map(
                            std::mem_fn(&vertexprop_t::get_name), bundle));
   boost::write_graphviz_dp(os, graph_, dp);
+}
+
+void typegraph_t::read(std::istream &os) {
+  boost::dynamic_properties dp;
+  auto bundle = boost::get(boost::vertex_bundle, graph_);
+  dp.property("node_id", boost::get(boost::vertex_index, graph_));
+  dp.property("label", boost::make_transform_value_property_map(
+                           std::mem_fn(&vertexprop_t::get_name), bundle));
+  boost::read_graphviz(os, graph_, dp);
 }
 
 //------------------------------------------------------------------------------
@@ -542,6 +560,17 @@ std::shared_ptr<tg::typegraph_t> typegraph_create(int seed,
     return tg;
   } catch (std::runtime_error &e) {
     std::cerr << "Typegraph construction problem: " << e.what() << std::endl;
+    throw;
+  }
+}
+
+std::shared_ptr<tg::typegraph_t> typegraph_read(std::string fname,
+                                                const cfg::config &cf) {
+  try {
+    auto tg = std::make_shared<tg::typegraph_t>(cf, fname);
+    return tg;
+  } catch (std::runtime_error &e) {
+    std::cerr << "Typegraph reading problem: " << e.what() << std::endl;
     throw;
   }
 }

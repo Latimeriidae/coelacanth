@@ -85,13 +85,42 @@ public:
   void run(int argc, char **argv);
 
 private:
+  auto decide_tg_task();
   void run_typegraph();
+  void wait_typegraph();
   void run_callgraph();
   void run_varassign();
   void run_controlgraph();
   void run_locir();
   void run_exprir();
+  void run_seq();
 };
+
+// logic is simple: stop-after-something means that. Just stop.
+void coerunner_t::run_seq() {
+  run_typegraph();
+  if (cfg::get(*default_config_, PGC::STOP_ON_TG)) {
+    wait_typegraph();
+    if (!default_config_->quiet())
+      std::cout << "Typegraph done, stopping" << std::endl;
+    return;
+  }
+
+  run_callgraph();
+  if (cfg::get(*default_config_, PGC::STOP_ON_CG))
+    return;
+
+  run_varassign();
+  if (cfg::get(*default_config_, PGC::STOP_ON_VA))
+    return;
+
+  run_controlgraph();
+  if (cfg::get(*default_config_, PGC::STOP_ON_CN))
+    return;
+
+  run_locir();
+  run_exprir();
+}
 
 void coerunner_t::run(int argc, char **argv) {
   default_config_ =
@@ -120,12 +149,8 @@ void coerunner_t::run(int argc, char **argv) {
   for (int i = 0; i < nthreads; ++i)
     consumers_.emplace_back(consumer_thread_func);
 
-  run_typegraph();
-  run_callgraph();
-  run_varassign();
-  run_controlgraph();
-  run_locir();
-  run_exprir();
+  // put all task in sequence
+  run_seq();
 
   // put final task
   task_t sentinel{[] { return -1; }};
@@ -141,28 +166,37 @@ void coerunner_t::run(int argc, char **argv) {
     std::cout << "Done" << std::endl;
 }
 
-// put typegraph task
-void coerunner_t::run_typegraph() {
-  int tgseed = default_config_->rand_positive();
-
-  auto &&[typegraph_task, typegraph_fut] =
-      create_task<tg_task_type>(typegraph_create, tgseed, *default_config_);
-
-  future_typegraph_ = std::move(typegraph_fut);
-
-  {
-    std::lock_guard<std::mutex> lk{task_queue_mutex};
-    task_queue.push(std::move(typegraph_task));
+auto coerunner_t::decide_tg_task() {
+  if (cfg::get(*default_config_, PGC::USETG)) {
+    std::string tgname = cfg::gets(*default_config_, PGC::TGNAME);
+    return create_task<tg_read_task_type>(typegraph_read, tgname,
+                                          *default_config_);
   }
+
+  int tgseed = default_config_->rand_positive();
+  return create_task<tg_task_type>(typegraph_create, tgseed, *default_config_);
 }
 
-void coerunner_t::run_callgraph() {
+// put typegraph task
+void coerunner_t::run_typegraph() {
+  auto &&[typegraph_task, typegraph_fut] = decide_tg_task();
+
+  future_typegraph_ = std::move(typegraph_fut);
+  std::lock_guard<std::mutex> lk{task_queue_mutex};
+  task_queue.push(std::move(typegraph_task));
+}
+
+void coerunner_t::wait_typegraph() {
   typegraph_ = future_typegraph_.get();
 
   if (default_config_->dumps()) {
     std::ofstream of("initial.types");
     typegraph_dump(typegraph_, of);
   }
+}
+
+void coerunner_t::run_callgraph() {
+  wait_typegraph();
 
   int cgseed = default_config_->rand_positive();
 
