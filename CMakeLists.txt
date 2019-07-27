@@ -11,9 +11,8 @@ include(cmake/git-hash.cmake)
 # timestamp.h header
 include(cmake/time-stamp.cmake)
 
-# boost
-find_package(Boost REQUIRED COMPONENTS graph regex program_options serialization)
-include_directories(${Boost_INCLUDE_DIRS})
+# boost support
+include(cmake/find-boost.cmake)
 
 # build flags
 if (DEFINED UNIX)
