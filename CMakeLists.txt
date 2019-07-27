@@ -11,15 +11,22 @@ include(cmake/git-hash.cmake)
 # timestamp.h header
 include(cmake/time-stamp.cmake)
 
+# boost
+find_package(Boost REQUIRED COMPONENTS graph regex program_options)
+include_directories(${Boost_INCLUDE_DIRS})
+
 # build flags
+set(COMMON_FLAGS "-Wall -Wextra -Wfatal-errors --std=c++17 -pthread")
 if (DEFINED DEBUG_BUILD AND DEBUG_BUILD STREQUAL "YES")
-  set(OPTIMIZATION_LEVEL "-O0 -g3 -ggdb -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR} -pthread")
+  set(OPTIMIZATION_LEVEL "-O0 -g3 -ggdb")
 else()
-  set(OPTIMIZATION_LEVEL "-O3 -DNDEBUG -Wall -Wextra -Werror --std=c++17 -Wfatal-errors -I${CMAKE_BINARY_DIR} -pthread")
+  set(OPTIMIZATION_LEVEL "-O3 -DNDEBUG")
 endif()
 
-set(CMAKE_C_FLAGS ${OPTIMIZATION_LEVEL})
-set(CMAKE_CXX_FLAGS ${OPTIMIZATION_LEVEL})
+include_directories(${CMAKE_BINARY_DIR})
+
+set(CMAKE_C_FLAGS "${OPTIMIZATION_LEVEL} ${COMMON_FLAGS}")
+set(CMAKE_CXX_FLAGS "${OPTIMIZATION_LEVEL} ${COMMON_FLAGS}")
 
 # main libraries build
 file(GLOB SUBFOLDERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/lib ${CMAKE_CURRENT_SOURCE_DIR}/lib/*)
@@ -35,7 +42,7 @@ endforeach()
 
 # final executable
 add_executable(coelacanth coelacanth.cc)
-target_link_libraries(coelacanth ${LIBLIST} boost_graph boost_regex boost_program_options)
+target_link_libraries(coelacanth ${LIBLIST} ${Boost_LIBRARIES})
 add_dependencies (coelacanth timestamp)
 
 install(TARGETS coelacanth DESTINATION bin)
