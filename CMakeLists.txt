@@ -15,8 +15,8 @@ include(cmake/time-stamp.cmake)
 include(cmake/find-boost.cmake)
 
 # build flags
-if (DEFINED UNIX)
-  message(STATUS "Configuring for Unix")
+if (DEFINED UNIX OR DEFINED MINGW)
+  message(STATUS "Configuring for Unix or MinGW")
   set(COMMON_FLAGS "-Wall -Wextra -Wfatal-errors --std=c++17 -pthread")
   if (DEFINED DEBUG_BUILD AND DEBUG_BUILD STREQUAL "YES")
     set(OPTIMIZATION_LEVEL "-O0 -g3 -ggdb")
