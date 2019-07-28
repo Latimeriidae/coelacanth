@@ -2,7 +2,7 @@
 set(Boost_USE_MULTITHREADED ON)
 
 # note: to find it for mingw 8.1, you shall patch lib\cmake\BoostDetectToolset-1.70.0.cmake
-find_package(Boost REQUIRED COMPONENTS graph regex program_options)
+find_package(Boost REQUIRED COMPONENTS graph regex program_options serialization)
 
 # at least boost_DIR shall exist
 if("${Boost_DIR}" STREQUAL "")
@@ -18,7 +18,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 # in MinGW build system imported targets are used instead of Boost_LIBRARIES string 
 if("${Boost_LIBRARIES}" STREQUAL "")
-  SET(Boost_LIBRARIES Boost::graph Boost::regex Boost::program_options)
+  SET(Boost_LIBRARIES Boost::graph Boost::regex Boost::program_options Boost::serialization)
 endif()
 
 # print all vars after boost was found -- useful for cmake debugging
