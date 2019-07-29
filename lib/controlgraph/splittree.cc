@@ -109,8 +109,11 @@ itpos_t split_tree_t::add_block(itpos_t pos, vertex_t parent) {
   if (adj_[parent].empty()) {
     adj_[parent].push_back(nblock);
     ret = adj_[parent].begin();
-  } else
-    ret = adj_[parent].insert(pos, nblock);
+  } else {
+    // insert after
+    assert(pos != adj_[parent].end());
+    ret = adj_[parent].insert(++pos, nblock);
+  }
 
   desc_of_[nblock] = prop;
   parent_of_[nblock] = parent;
@@ -145,6 +148,9 @@ void split_tree_t::add_container(int bb_under_split) {
   default:
     throw std::runtime_error("Unknown container");
   }
+  // need to reserve since all contents and iterators
+  // to it (including list iterators) can be invalidated
+  adj_.reserve(adj_.size() + nchilds);
   std::stack<int> create_childs;
   if (desc_of_[bb_under_split]->is_branching()) {
     for (int i = 0; i < nchilds; ++i) {
@@ -222,6 +228,11 @@ void split_tree_t::do_split(int bb_under_split) {
   assert(bb_under_split != PSEUDO_VERTEX);
   assert(parent_of_.find(bb_under_split) != parent_of_.end());
 
+  int naddblocks = cfg::get(cf_, CN::ADDBLOCKS);
+  // need to reserve since all contents and iterators
+  // to it (including list iterators) can be invalidated
+  adj_.reserve(adj_.size() + naddblocks);
+
   // 1. find position before this block in list of childs of its parent
   int nbbp = parent_of_[bb_under_split];
 
@@ -234,7 +245,6 @@ void split_tree_t::do_split(int bb_under_split) {
     throw std::runtime_error("Not found in list of childs of its parent");
 
   // 2. add several more blocks
-  int naddblocks = cfg::get(cf_, CN::ADDBLOCKS);
   if (naddblocks > 0) {
     auto nbnext = nbit;
     for (int i = 0; i < naddblocks; ++i)
