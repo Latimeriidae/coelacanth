@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-#include "configs.h"
+#include "config/configs.h"
 #include "tasksystem.h"
 #include "timestamp.h"
 #include "version.h"

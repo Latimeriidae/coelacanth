@@ -45,15 +45,16 @@ file(GLOB SUBFOLDERS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/lib ${CMAKE_CURRENT_SO
 set(LIBLIST "")
 foreach(SUBFOLDER ${SUBFOLDERS})
   file(GLOB_RECURSE SUB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/${SUBFOLDER}/*.cc)
-  add_library(${SUBFOLDER}lib STATIC ${SUB_SOURCES})
+  file(GLOB_RECURSE SUB_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/include/${SUBFOLDER}/*.h)
+  add_library(${SUBFOLDER}lib STATIC ${SUB_SOURCES} ${SUB_HEADERS})
   add_dependencies (${SUBFOLDER}lib clangformat)
   list(APPEND LIBLIST ${SUBFOLDER}lib)
-  target_include_directories(${SUBFOLDER}lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/${SUBFOLDER})
+  target_include_directories(${SUBFOLDER}lib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/${SUBFOLDER})
   target_include_directories(${SUBFOLDER}lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endforeach()
 
 # final executable
-add_executable(coelacanth coelacanth.cc)
+add_executable(coelacanth coelacanth.cc tasksystem.h dbgstream.h)
 target_link_libraries(coelacanth ${LIBLIST} ${Boost_LIBRARIES})
 add_dependencies (coelacanth timestamp)
 
