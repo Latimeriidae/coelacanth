@@ -142,8 +142,8 @@ void postverify(const config &cf);
 
 struct config_rng {
   using result_type = int;
-  cfg::config &cf_;
-  config_rng(const cfg::config &cf) : cf_(const_cast<cfg::config &>(cf)) {}
+  const cfg::config &cf_;
+  config_rng(const cfg::config &cf) : cf_(cf) {}
   result_type operator()() { return cf_.rand_positive(); }
   static int min() { return 0; }
   static int max() { return std::numeric_limits<int>::max(); }
