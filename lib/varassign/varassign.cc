@@ -91,6 +91,12 @@ int varassign_t::create_var(int tid) {
   return vidx;
 }
 
+void varassign_t::create_pointee(int vid, int tid, func_vars &fv) {
+  int pointee_vid = create_var(tgraph_->get_pointee(tid).id);
+  fv.pointees_[vid][tid] = pointee_vid;
+  fv.vars_.push_back(pointee_vid);
+}
+
 void varassign_t::process_var(int vid, int funcid) {
   int tid = vars_[vid].type_id;
   tg::vertexprop_t vpt = tgraph_->vertex_from(tid);
@@ -99,9 +105,7 @@ void varassign_t::process_var(int vid, int funcid) {
 
   // create pointees for pointers
   if (vpt.is_pointer()) {
-    int pointee_vid = create_var(tgraph_->get_pointee(tid).id);
-    fv.pointees_[vid] = pointee_vid;
-    fv.vars_.push_back(pointee_vid);
+    create_pointee(vid, tid, fv);
   }
 
   // create permutators for arrays
@@ -141,6 +145,8 @@ void varassign_t::process_var(int vid, int funcid) {
       auto npt = tgraph_->vertex_from((*cit).first);
       if (npt.is_complex())
         chlds.push(npt);
+      if (npt.is_pointer())
+        create_pointee(vid, npt.id, fv);
     }
   }
 }

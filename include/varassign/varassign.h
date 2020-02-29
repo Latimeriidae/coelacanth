@@ -83,9 +83,10 @@ class varassign_t final {
     // arguments xx
     std::unordered_set<int> args_;
 
-    // pointees: x -> y
-    // If v[x] have pointer type, it points to some v[y]
-    std::unordered_map<int, int> pointees_;
+    // pointees: x -> y -> z
+    // If v[x] have pointer subtypes, they point to some v[z]
+    // Namely, pts[x] gives map of subtypes to pointee variables
+    std::unordered_map<int, std::unordered_map<int, int>> pointees_;
 
     // accessor idxs
     // array or struct with array members vx may have accessors iy, iz, ....
@@ -130,13 +131,18 @@ public:
   auto fv_begin(int nfunc) const { return fvars_[nfunc].vars_.cbegin(); }
   auto fv_end(int nfunc) const { return fvars_[nfunc].vars_.cend(); }
 
-  bool have_pointee(int nfunc, int vid) const {
+  bool have_pointee(int nfunc, int vid, int tid) const {
     auto &ps = fvars_[nfunc].pointees_;
-    return ps.find(vid) != ps.end();
+    auto pcit = ps.find(vid);
+    if (pcit == ps.end())
+      return false;
+    return pcit->second.find(tid) != pcit->second.end();
   }
 
-  int pointee(int nfunc, int vid) const {
-    return fvars_[nfunc].pointees_.find(vid)->second;
+  int pointee(int nfunc, int vid, int tid) const {
+    assert(have_pointee(nfunc, vid, tid) &&
+           "No pointee for this variable subtype");
+    return fvars_[nfunc].pointees_.at(vid).at(tid);
   }
 
   bool have_accs(int nfunc, int vid) const {
@@ -164,6 +170,7 @@ public:
   // helpers
 private:
   int create_var(int tid);
+  void create_pointee(int vid, int tid, func_vars &fv);
   void process_var(int vid, int funcid);
   void create_function_vars(int fid);
 };
