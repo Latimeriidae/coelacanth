@@ -83,8 +83,9 @@ std::string split_tree_t::varname(va::variable_t v) const {
 void split_tree_t::dump(std::ostream &os) const {
   using stackelem_t = std::pair<int, vertex_t>;
   std::stack<stackelem_t> s;
-  for (auto tl : adj_[PSEUDO_VERTEX])
-    s.push(std::make_pair(0, tl));
+  for (auto ri = adj_[PSEUDO_VERTEX].rbegin(), re = adj_[PSEUDO_VERTEX].rend();
+       ri != re; ++ri)
+    s.push(std::make_pair(0, *ri));
   while (!s.empty()) {
     auto [level, nvert] = s.top();
     s.pop();
@@ -93,8 +94,9 @@ void split_tree_t::dump(std::ostream &os) const {
       os << " ";
     os << *from_vertex(nvert) << "\n";
 
-    for (auto chvert : adj_[nvert])
-      s.push(std::make_pair(level + 2, chvert));
+    for (auto ri = adj_[nvert].rbegin(), re = adj_[nvert].rend(); ri != re;
+         ++ri)
+      s.push(std::make_pair(level + 2, *ri));
   }
 }
 
