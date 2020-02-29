@@ -14,7 +14,7 @@ endif()
 if("${Boost_INCLUDE_DIRS}" STREQUAL "")
   SET(Boost_INCLUDE_DIRS "${Boost_DIR}/../../../include/boost-${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}")
 endif()
-include_directories(${Boost_INCLUDE_DIRS} SYSTEM)
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # in MinGW build system imported targets are used instead of Boost_LIBRARIES string 
 if("${Boost_LIBRARIES}" STREQUAL "")
