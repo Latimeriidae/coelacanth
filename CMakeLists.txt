@@ -58,3 +58,5 @@ foreach(TOOL ${TOOLLIST})
   add_dependencies(${TOOL} timestamp)
   install(TARGETS ${TOOL} DESTINATION bin)
 endforeach()
+
+install()

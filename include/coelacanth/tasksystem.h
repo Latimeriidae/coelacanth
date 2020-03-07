@@ -11,18 +11,31 @@
 
 #pragma once
 
-#include <functional>
-#include <memory>
-#include <tuple>
-#include <type_traits>
+#include <fstream>
+#include <future>
+#include <mutex>
+#include <queue>
+#include <sstream>
+#include <thread>
+#include <utility>
 
 #include "config/configs.h"
+#include "fireonce.h"
 
 //------------------------------------------------------------------------------
 //
 // forward declarations
 //
 //------------------------------------------------------------------------------
+
+// consumer thread function
+void consumer_thread_func();
+
+// push sentinel task to global queue
+void push_sentinel_task();
+
+// push task to global queue
+void push_task(task_t);
 
 // callgraph
 namespace tg {
@@ -32,6 +45,9 @@ class typegraph_t;
 using tg_task_type = std::shared_ptr<tg::typegraph_t>(int, const cfg::config &);
 using tg_read_task_type = std::shared_ptr<tg::typegraph_t>(std::string,
                                                            const cfg::config &);
+using typegraph_future_t =
+    decltype(std::packaged_task<tg_task_type>{}.get_future());
+using typegraph_sp_t = decltype(typegraph_future_t{}.get());
 
 std::shared_ptr<tg::typegraph_t> typegraph_create(int, const cfg::config &);
 std::shared_ptr<tg::typegraph_t> typegraph_read(std::string,
@@ -45,6 +61,9 @@ class callgraph_t;
 
 using cg_task_type = std::shared_ptr<cg::callgraph_t>(
     int, const cfg::config &, std::shared_ptr<tg::typegraph_t>);
+using callgraph_future_t =
+    decltype(std::packaged_task<cg_task_type>{}.get_future());
+using callgraph_sp_t = decltype(callgraph_future_t{}.get());
 
 std::shared_ptr<cg::callgraph_t>
 callgraph_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>);
@@ -58,6 +77,9 @@ class varassign_t;
 using va_task_type = std::shared_ptr<va::varassign_t>(
     int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
     std::shared_ptr<cg::callgraph_t>);
+using varassign_future_t =
+    decltype(std::packaged_task<va_task_type>{}.get_future());
+using varassign_sp_t = decltype(varassign_future_t{}.get());
 
 std::shared_ptr<va::varassign_t>
 varassign_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
@@ -72,6 +94,9 @@ class controlgraph_t;
 using cn_task_type = std::shared_ptr<cn::controlgraph_t>(
     int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
     std::shared_ptr<cg::callgraph_t>, std::shared_ptr<va::varassign_t>);
+using contgraph_future_t =
+    decltype(std::packaged_task<cn_task_type>{}.get_future());
+using contgraph_sp_t = decltype(contgraph_future_t{}.get());
 
 std::shared_ptr<cn::controlgraph_t>
 controlgraph_create(int, const cfg::config &, std::shared_ptr<tg::typegraph_t>,
@@ -92,68 +117,12 @@ void controlgraph_dump(std::shared_ptr<cn::controlgraph_t>, std::ostream &os);
 //
 //------------------------------------------------------------------------------
 
-template <typename T> class fire_once;
-
-// critical part of task system: one-off function class to place packaged_task
-template <typename R, typename... Args> class fire_once<R(Args...)> {
-  std::unique_ptr<void, void (*)(void *)> ptr{nullptr, +[](void *) {}};
-  R (*invoke)(void *, Args...) = nullptr;
-
-public:
-  fire_once() = default;
-  fire_once(fire_once &&) = default;
-  fire_once &operator=(fire_once &&) = default;
-
-  // constructor from anything callable
-  template <typename F> fire_once(F &&f) {
-    auto pf = std::make_unique<F>(std::move(f));
-    invoke = +[](void *pf, Args... args) -> R {
-      F *f = reinterpret_cast<F *>(pf);
-      return (*f)(std::forward<Args>(args)...);
-    };
-    ptr = {pf.release(), [](void *pf) {
-             F *f = reinterpret_cast<F *>(pf);
-             delete f;
-           }};
-  }
-
-  // invoke if R not void
-  template <typename R2 = R,
-            std::enable_if_t<!std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args &&... args) && {
-    R2 ret = invoke(ptr.get(), std::forward<Args>(args)...);
-    clear();
-    return std::move(ret);
-  }
-
-  // invoke if R is void
-  template <typename R2 = R,
-            std::enable_if_t<std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args &&... args) && {
-    invoke(ptr.get(), std::forward<Args>(args)...);
-    clear();
-  }
-
-  void clear() {
-    invoke = nullptr;
-    ptr.reset();
-  }
-
-  explicit operator bool() const { return static_cast<bool>(ptr); }
-};
-
-// generic (type-erased) task to put on queue
-// returns -1 if it is special signalling task (end of work for consumers)
-// otherwise do what it shall and return 0
-using task_t = fire_once<int()>;
-
 // generic creation of task and its future
 // for example:
 // create_task(callgraph_create, default_config);
 // will return pair of task and future for std::shared_ptr<cg::callgraph_t>
-template <typename TT, typename F, typename... Args>
-auto create_task(F f, Args &&... args) {
-  std::packaged_task<TT> tsk{f};
+template <typename F, typename... Args> auto create_task(F f, Args &&... args) {
+  std::packaged_task<std::remove_pointer_t<F>> tsk{f};
   auto fut = tsk.get_future();
   task_t t{[ct = std::move(tsk),
             args = std::make_tuple(std::forward<Args>(args)...)]() mutable {

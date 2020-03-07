@@ -6,6 +6,8 @@
 
 set(SRCS
   coelacanth.cc
+  dbgstream.cc
+  tasksystem.cc
 )
 
 add_executable(coelacanth ${SRCS})

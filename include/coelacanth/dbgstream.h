@@ -9,14 +9,15 @@
 //
 //------------------------------------------------------------------------------
 
+#pragma once
+
 #include <iostream>
 #include <mutex>
 #include <thread>
 
-extern std::mutex mut_dbgs;
-
 struct dbgs {
   dbgs() = default;
+  static std::mutex mut_dbgs;
 
   template <typename T> dbgs &&outr(T t) && {
     std::lock_guard<std::mutex> outlk{mut_dbgs};
