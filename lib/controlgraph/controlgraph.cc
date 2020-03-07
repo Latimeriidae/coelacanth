@@ -32,9 +32,9 @@
 #include <utility>
 #include <vector>
 
-#include "../dbgstream.h"
 #include "callgraph/callgraph.h"
 #include "callgraph/calliters.h"
+#include "coelacanth/dbgstream.h"
 #include "controlgraph.h"
 #include "splittree.h"
 #include "typegraph/typegraph.h"

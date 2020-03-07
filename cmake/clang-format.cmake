@@ -1,22 +1,43 @@
-option(AUTO_CLANG_FORMAT "Enable automatic run of clang-format on every build" ON)
+#-------------------------------------------------------------------------------
+#
+# Coelacanth build system -- flags definitions
+#
+#-------------------------------------------------------------------------------
+#
+# This module provides function add_clang_format_run
+# use: add_clang_format_run(target, prefix, list of source files)
+# also you may specify SKIP_CLANG_FORMAT=1 on cmake to skip this functionality
+#
+#-------------------------------------------------------------------------------
 
-if (AUTO_CLANG_FORMAT)
+if(NOT SKIP_CLANG_FORMAT)
   find_program(CLANG_FORMAT clang-format HINTS ${CLANG_FORMAT_PATH})
 
   if (NOT CLANG_FORMAT)
-    message(STATUS "Probably need to specify CLANG_FORMAT_PATH")
-    message(FATAL_ERROR "Clang-format not found")
+     message(STATUS "Probably need to specify CLANG_FORMAT_PATH")
+     message(FATAL_ERROR "Clang-format not found")
   endif()
+endif()
 
-  file(GLOB_RECURSE ALL_SOURCE_FILES *.cpp *.cc *.h *.hpp)
-
+function(add_clang_format_run TGT PRFX SRCLIST)
+  if(SKIP_CLANG_FORMAT)
+    return()
+  endif()
+  set(CFNAME "clangformat_${TGT}")
+  set(SRCS "")
+  foreach(SRCFL ${SRCLIST})
+    list(APPEND SRCS "${PRFX}/${SRCFL}")
+  endforeach()
+  set(INCDIR ${CMAKE_SOURCE_DIR}/include/${TGT})
+  file(GLOB HEADERSRCS ${INCDIR}/*)
+  foreach(SRCFL ${HEADERSRCS})
+    list(APPEND SRCS "${SRCFL}")
+  endforeach()
   add_custom_target(
-    clangformat
+    ${CFNAME}
     COMMAND ${CLANG_FORMAT}
     -i
-    ${ALL_SOURCE_FILES}
-    )
-else()
-  # Add fake target that does nothing if formatting is disabled.
-  add_custom_target(clangformat)
-endif()
+    ${SRCS}
+  )
+  add_dependencies(${TGT} ${CFNAME})
+endfunction(add_clang_format_run)

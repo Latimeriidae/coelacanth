@@ -1,3 +1,9 @@
+#-------------------------------------------------------------------------------
+#
+# Coelacanth build system -- looking for boost
+#
+#-------------------------------------------------------------------------------
+
 # we need to find mt versions
 set(Boost_USE_MULTITHREADED ON)
 

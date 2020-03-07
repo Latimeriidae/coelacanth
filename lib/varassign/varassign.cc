@@ -11,8 +11,8 @@
 
 #include <queue>
 
-#include "../dbgstream.h"
 #include "callgraph/callgraph.h"
+#include "coelacanth/dbgstream.h"
 #include "typegraph/typegraph.h"
 #include "varassign.h"
 
