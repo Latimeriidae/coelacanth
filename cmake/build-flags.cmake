@@ -8,11 +8,15 @@
 #
 #-------------------------------------------------------------------------------
 
+set(THREADS_PREFER_PTHREAD_FLAG 1)
+find_package(Threads REQUIRED)
+link_libraries(Threads::Threads)
+
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG_BUILD>")
 
 if (DEFINED UNIX OR DEFINED MINGW)
   message(STATUS "Configuring for Unix or MinGW")
-  add_compile_options(-Wall -Wextra -Werror -Wfatal-errors -pthread)
+  add_compile_options(-Wall -Wextra -Werror -Wfatal-errors)
   add_compile_options(-Wno-deprecated-copy) # workaround for boost 1.70 with gcc 9.2
 elseif (DEFINED MSVC)
   message(STATUS "Configuring for Visual Studio")
