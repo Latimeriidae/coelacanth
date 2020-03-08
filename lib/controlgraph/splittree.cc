@@ -105,7 +105,7 @@ itpos_t split_tree_t::add_block(itpos_t pos, vertex_t parent) {
   int nblock = adj_.size();
   assert(parent < nblock);
   adj_.emplace_back();
-  shared_vp_t prop = create_vprop<block_t>(*this, nblock);
+  shared_vp_t prop = create_vprop<block_t>(*this);
 
   itpos_t ret;
   if (adj_[parent].empty()) {

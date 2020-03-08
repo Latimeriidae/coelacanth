@@ -102,8 +102,7 @@ using stt = std::unique_ptr<split_tree_t, split_tree_deleter_t>;
 // vertexprop is rather large, so real operating type is shared-pointer to it
 // see shared_vp_t below
 class vertexprop_t {
-  const split_tree_t &parent_;
-  vertex_t id_ = ILLEGAL_VERTEX;
+  const split_tree_t &parent_; // FIXME: is this really needed?
   category_t cat_ = category_t::ILLEGAL;
   common_t type_;
 
@@ -113,13 +112,12 @@ class vertexprop_t {
 public:
   using vait = typename std::vector<va::variable_t>::const_iterator;
 
-  vertexprop_t() = default;
-  explicit vertexprop_t(const split_tree_t &p, vertex_t i, category_t c,
-                        common_t t)
-      : parent_(p), id_(i), cat_(c), type_(t) {}
+  vertexprop_t() = delete;
+  explicit vertexprop_t(const split_tree_t &p, category_t c, common_t t)
+      : parent_(p), cat_(c), type_(t) {}
 
-  vertexprop_t(const vertexprop_t &) = default;
-  vertexprop_t &operator=(const vertexprop_t &) = default;
+  vertexprop_t(const vertexprop_t &) = delete;
+  vertexprop_t &operator=(const vertexprop_t &) = delete;
 
   category_t cat() const { return cat_; }
   common_t type() const { return type_; }
@@ -158,11 +156,11 @@ using shared_vp_t = std::shared_ptr<const vertexprop_t>;
 using vct = std::vector<shared_vp_t>;
 using vcit = typename vct::iterator;
 
-std::ostream &operator<<(std::ostream &, const vertexprop_t);
+std::ostream &operator<<(std::ostream &, const vertexprop_t &);
 
 template <typename T, typename... Ts>
-shared_vp_t create_vprop(const split_tree_t &p, vertex_t id, Ts &&... args) {
-  return std::make_shared<const vertexprop_t>(p, id, T::cat,
+shared_vp_t create_vprop(const split_tree_t &p, Ts &&... args) {
+  return std::make_shared<const vertexprop_t>(p, T::cat,
                                               T(std::forward<Ts>(args)...));
 }
 

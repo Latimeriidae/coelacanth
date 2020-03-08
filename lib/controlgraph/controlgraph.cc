@@ -57,7 +57,7 @@ constexpr const char *blk_names[] = {"BLOCK",     "CALL",     "LOOP",
 static_assert(array_size(blk_names) == int(category_t::CATMAX));
 
 // NAME [special part] [defs] [uses]
-std::ostream &operator<<(std::ostream &os, const vertexprop_t v) {
+std::ostream &operator<<(std::ostream &os, const vertexprop_t &v) {
   // NAME
   os << blk_names[int(v.cat())];
 
@@ -166,20 +166,18 @@ controlgraph_t::controlgraph_t(cfg::config &&cf,
     strees_[cgvi] = std::move(st);
 
     vct seeds;
-    vertex_t id = 0;
     const split_tree_t &parent = *strees_[cgvi];
 
-    seeds.emplace_back(create_vprop<block_t>(parent, id++));
+    seeds.emplace_back(create_vprop<block_t>(parent));
 
     // initial seeds are direct calls
     for (auto cit = cgraph_->callees_begin(cgv, cg::calltype_t::DIRECT);
          cit != cgraph_->callees_end(cgv, cg::calltype_t::DIRECT); ++cit) {
       seeds.emplace_back(
-          create_vprop<call_t>(parent, id++, call_type_t::DIRECT, int(*cit)));
-      seeds.emplace_back(create_vprop<block_t>(parent, id++));
+          create_vprop<call_t>(parent, call_type_t::DIRECT, int(*cit)));
+      seeds.emplace_back(create_vprop<block_t>(parent));
     }
 
-    assert((id > 0) && (id == int(seeds.size())));
     strees_[cgvi]->process(seeds.begin(), seeds.end());
   }
 }

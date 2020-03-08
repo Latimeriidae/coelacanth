@@ -102,8 +102,7 @@ private:
 // turns anything at nblock into T
 template <typename T, typename... Args>
 void split_tree_t::turn_block(int nblock, Args &&... args) {
-  desc_of_[nblock] =
-      create_vprop<T>(*this, nblock, std::forward<Args>(args)...);
+  desc_of_[nblock] = create_vprop<T>(*this, std::forward<Args>(args)...);
   if constexpr (T::cat != category_t::BLOCK) {
     bbs_.erase(nblock);
   } else {
