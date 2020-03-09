@@ -59,4 +59,9 @@ foreach(TOOL ${TOOLLIST})
   install(TARGETS ${TOOL} DESTINATION bin)
 endforeach()
 
+option(COE_BUILD_TESTS "Enable/disable tests" ON)
+if (COE_BUILD_TESTS)
+  add_subdirectory(test)
+endif()
+
 install()

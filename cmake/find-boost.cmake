@@ -8,11 +8,31 @@
 set(Boost_USE_MULTITHREADED ON)
 
 # note: to find it for mingw 8.1, you shall patch lib\cmake\BoostDetectToolset-1.70.0.cmake
-find_package(Boost REQUIRED COMPONENTS graph regex program_options serialization)
+find_package(Boost REQUIRED
+  COMPONENTS
+  graph
+  regex
+  program_options
+  serialization
+  unit_test_framework
+  timer # needed by unit tests but not imported as a dependency by FindBoost
+  )
 
 # at least boost_DIR shall exist
 if("${Boost_DIR}" STREQUAL "")
   message(FATAL_ERROR "Boost dir not found")
+endif()
+
+if(DEFINED Boost_USE_STATIC_LIBS)
+  # Define macro for boost test when using shared libs.
+  if(NOT Boost_USE_STATIC_LIBS)
+    add_compile_definitions(BOOST_TEST_DYN_LINK)
+  endif()
+else()
+  # By default, windows uses static libs and other systems use shared.
+  if(NOT WIN32)
+    add_compile_definitions(BOOST_TEST_DYN_LINK)
+  endif()
 endif()
 
 # add boost include directories
@@ -24,7 +44,14 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # in MinGW build system imported targets are used instead of Boost_LIBRARIES string 
 if("${Boost_LIBRARIES}" STREQUAL "")
-  SET(Boost_LIBRARIES Boost::graph Boost::regex Boost::program_options Boost::serialization)
+  SET(Boost_LIBRARIES
+    Boost::graph
+    Boost::regex
+    Boost::program_options
+    Boost::serialization
+    Boost::unit_test_framework
+    Boost::timer
+    )
 endif()
 
 # print all vars after boost was found -- useful for cmake debugging
