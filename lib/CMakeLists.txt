@@ -10,6 +10,7 @@ set(LIBLIST
   controlgraph
   typegraph
   varassign
+  utils
 )
 
 foreach(LIB ${LIBLIST})

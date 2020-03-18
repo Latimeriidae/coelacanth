@@ -16,6 +16,7 @@ find_package(Boost REQUIRED
   serialization
   unit_test_framework
   timer # needed by unit tests but not imported as a dependency by FindBoost
+  iostreams
   )
 
 # at least boost_DIR shall exist
@@ -51,6 +52,7 @@ if("${Boost_LIBRARIES}" STREQUAL "")
     Boost::serialization
     Boost::unit_test_framework
     Boost::timer
+    Boost::iostreams
     )
 endif()
 
