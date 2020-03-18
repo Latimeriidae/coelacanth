@@ -116,7 +116,7 @@ BOOST_AUTO_TEST_CASE(stream) {
   ios << "Hello\nWorld" << std::endl << "!";
   BOOST_TEST(oss.str() == "Hello\nWorld\n!");
 
-  oss = {};
+  oss = std::ostringstream{};
   ios << increase_indent << "Hello\nWorld\n" << decrease_indent << "!";
   BOOST_TEST(oss.str() == "Hello\n  World\n!");
 }
@@ -140,15 +140,15 @@ BOOST_AUTO_TEST_CASE(double_filter) {
   BOOST_TEST(oss.str() == "Hello\nWorld\n!");
 
   ios1.increase_level();
-  oss = {};
+  oss = std::ostringstream{};
   ios2 << "Hello\nWorld\n!";
   BOOST_TEST(oss.str() == "Hello\n  World\n  !");
 
-  oss = {};
+  oss = std::ostringstream{};
   ios2 << increase_indent << "Hello\nWorld\n" << decrease_indent << "!";
   BOOST_TEST(oss.str() == "Hello\n   World\n  !");
 
-  oss = {};
+  oss = std::ostringstream{};
   ios2 << increase_indent << "Hello\nWorld\n"
        << decrease_indent << (ios1.decrease_level(), "!");
   BOOST_TEST(oss.str() == "Hello\n   World\n!");
