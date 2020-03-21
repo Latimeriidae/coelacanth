@@ -84,9 +84,6 @@ public:
 };
 
 template <typename Leaf, typename Branch>
-sibling_iterator_t(node_t<Leaf, Branch> *)->sibling_iterator_t<Leaf, Branch>;
-
-template <typename Leaf, typename Branch>
 inline bool operator==(sibling_iterator_t<Leaf, Branch> lhs,
                        sibling_iterator_t<Leaf, Branch> rhs) {
   return lhs.equals(rhs);
@@ -271,9 +268,6 @@ auto inorder_iterator_t<Leaf, Branch>::operator--() -> inorder_iterator_t & {
 
   return *this;
 }
-
-template <typename Leaf, typename Branch>
-inorder_iterator_t(node_t<Leaf, Branch> *)->inorder_iterator_t<Leaf, Branch>;
 
 template <typename Leaf, typename Branch>
 inline bool operator==(inorder_iterator_t<Leaf, Branch> lhs,
