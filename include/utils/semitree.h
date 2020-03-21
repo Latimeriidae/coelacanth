@@ -25,7 +25,8 @@
 #include "semitree_nodes.h"
 
 namespace semitree {
-template <typename Leaf, typename Branch> class tree_t {
+template <typename Leaf, typename Branch>
+class tree_t : private branch_t<Leaf, Branch> {
 public:
   using node_t = semitree::node_t<Leaf, Branch>;
   using branch_t = semitree::branch_t<Leaf, Branch>;
@@ -36,33 +37,23 @@ public:
 public:
   tree_t() = default;
 
-  // Simple list insertion. Inserts BEFORE iterator.
-  sibling_iterator_t insert(sibling_iterator_t it, node_t &n);
+  using branch_t::begin;
+  using branch_t::empty;
+  using branch_t::end;
+  using branch_t::insert;
+
+  // Iterators that denote inorder range of this tree.
+  // Inorder range consists of all inserted nodes.
+  auto inorder_end() { return inorder_iterator_t{this, true}; }
+  auto inorder_begin() {
+    if (empty())
+      return inorder_end();
+    return inorder_iterator_t{&*begin(), false};
+  }
 
   // Inorder insertion. Inserts BEFORE iterator.
   inorder_iterator_t insert(inorder_iterator_t it, node_t &n);
 };
-
-// Insert BEFORE iterator.
-// Simple list insertion. Just rebind left and right pointers
-// and set parent if it presents.
-template <typename Leaf, typename Branch>
-auto tree_t<Leaf, Branch>::insert(sibling_iterator_t it, node_t &n)
-    -> sibling_iterator_t {
-  if (it->has_parent()) {
-    auto &parent = it->get_parent();
-    n.set_parent(&parent);
-    if (it == parent.begin())
-      parent.set_firstchild(&n);
-  }
-
-  node_t &left = it->get_prev();
-  left.set_next(&n);
-  n.set_prev(&left);
-  it->set_prev(&n);
-  n.set_next(&*it);
-  return it;
-}
 
 // Insert BEFORE iterator.
 // Inorder insertion. Reduce it to sibling insertion.
@@ -72,13 +63,14 @@ auto tree_t<Leaf, Branch>::insert(sibling_iterator_t it, node_t &n)
 template <typename Leaf, typename Branch>
 auto tree_t<Leaf, Branch>::insert(inorder_iterator_t it, node_t &n)
     -> inorder_iterator_t {
-  sibling_iterator_t ipt;
   if (it->ref.is_branch() && it->visited) {
     auto &parent = static_cast<branch_t &>(it->ref);
-    ipt = parent.end();
-  } else
-    ipt = it->ref.get_sibling_iterator();
-  insert(ipt, n);
+    parent.insert(parent.end(), n);
+    return it;
+  }
+  branch_t &parent =
+      (&it->ref.get_parent() == this) ? *this : it->ref.get_parent();
+  parent.insert(it->ref.get_sibling_iterator(), n);
   return it;
 }
 } // namespace semitree

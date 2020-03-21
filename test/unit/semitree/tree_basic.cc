@@ -95,6 +95,12 @@ BOOST_AUTO_TEST_CASE(inorder_iterator) {
   BOOST_TEST(lit3 != bit2);
 }
 
+BOOST_AUTO_TEST_CASE(empty_tree_iterator) {
+  tree tr;
+  BOOST_TEST(tr.empty());
+  BOOST_TEST(tr.inorder_begin() == tr.inorder_end());
+}
+
 // Check that newly created node has no parent.
 BOOST_AUTO_TEST_CASE(parent) {
   leaf l;
@@ -120,12 +126,11 @@ template <typename It> void test_simple_iterators(It lit, It rit) {
 // Simple list from two nodes. Check sibling insertion.
 BOOST_AUTO_TEST_CASE(sibling) {
   tree tr;
-  branch root;
   leaf left;
   leaf right;
   //   root
   // left right
-  tr.insert(root.end(), right);
+  tr.insert(tr.end(), right);
   tr.insert(right.get_sibling_iterator(), left);
   BOOST_TEST(&left.get_next() == &right);
   BOOST_TEST(&left == &right.get_prev());
@@ -138,13 +143,12 @@ BOOST_AUTO_TEST_CASE(sibling) {
 // Simple list from two nodes. Check leaf inorder insertion.
 BOOST_AUTO_TEST_CASE(inorder_leaf) {
   tree tr;
-  branch root;
   leaf left;
   leaf right;
   ino_it rit{&right, false};
   //   root
   // left right
-  tr.insert(root.begin(), right);
+  tr.insert(tr.begin(), right);
   tr.insert(rit, left);
   BOOST_TEST(&left.get_next() == &right);
   BOOST_TEST(&left == &right.get_prev());
@@ -156,13 +160,12 @@ BOOST_AUTO_TEST_CASE(inorder_leaf) {
 // Simple list from two nodes. Check leaf+branch inorder insertion.
 BOOST_AUTO_TEST_CASE(inorder_branch_list) {
   tree tr;
-  branch root;
   leaf l;
   branch b;
   ino_it bit{&b, false};
   // root
   // b  l
-  tr.insert(root.begin(), b);
+  tr.insert(tr.begin(), b);
   tr.insert(bit, l);
   ino_it lit{&l, false};
   test_simple_iterators(lit, bit);
@@ -171,14 +174,13 @@ BOOST_AUTO_TEST_CASE(inorder_branch_list) {
 // Tree from branch and one leaf child.
 BOOST_AUTO_TEST_CASE(inorder_branch_tree) {
   tree tr;
-  branch root;
   leaf l;
   branch b;
   ino_it bit{&b, true};
   // root
   //  b
   //  l
-  tr.insert(root.begin(), b);
+  tr.insert(tr.begin(), b);
   tr.insert(bit, l);
   BOOST_TEST(!b.empty());
   BOOST_TEST(b.begin() != b.end());

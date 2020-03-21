@@ -37,6 +37,7 @@ namespace semitree {
 // Avoid cyclic dependency on nodes.
 template <typename Leaf, typename Branch> class node_t;
 template <typename Leaf, typename Branch> class branch_t;
+template <typename Leaf, typename Branch> class inorder_iterator_t;
 
 // Simple bidirectional node iterator.
 template <typename Leaf, typename Branch> class sibling_iterator_t final {
@@ -109,6 +110,7 @@ inline bool operator!=(sibling_iterator_t<Leaf, Branch> lhs,
 template <typename Leaf, typename Branch> class inorder_iterator_t final {
   using node_t = semitree::node_t<Leaf, Branch>;
   using branch_t = semitree::branch_t<Leaf, Branch>;
+  using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
 
   // Internal value that iterator contains.
   // Consists of pointer to node and visited field.

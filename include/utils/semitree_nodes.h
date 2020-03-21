@@ -83,32 +83,36 @@ class node_interface_t : public node_interface_helper_t<Leaf, Branch> {};
 // Node base class. Contains pointers to parent and left and right siblings.
 template <typename Leaf, typename Branch>
 class node_t : public node_interface_t<Leaf, Branch> {
-  friend class tree_t<Leaf, Branch>;
-
   using branch_t = semitree::branch_t<Leaf, Branch>;
+  using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
 
 protected:
-  // There are two fundamental types of nodes -- leaf and branch,
-  // and one utilitary -- sentinel. Sentinel should not be accessed by
-  // users. Sentinel entry here is pure for debugging reasons.
-  enum class node_type_t { LEAF, BRANCH, SENTINEL };
+  // There are two fundamental types of nodes -- leaf and branch.
+  // Sentinel nodes of branches represented by dataless leafs.
+  enum class node_type_t { LEAF, BRANCH };
 
 private:
   branch_t *parent_;
   node_t *prev_;
   node_t *next_;
-  node_type_t ntype_;
+  bool is_branch_;
 
 protected:
-  node_t(node_type_t type)
-      : parent_{nullptr}, prev_{nullptr}, next_{nullptr}, ntype_{type} {}
+  // Ctor just for sentinels.
+  explicit node_t(branch_t *parent)
+      : parent_{parent}, prev_{this}, next_{this}, is_branch_{false} {}
+
+  // Ctor for other branches and leafs.
+  explicit node_t(node_type_t type)
+      : parent_{nullptr}, prev_{nullptr}, next_{nullptr},
+        is_branch_{type == node_type_t::BRANCH} {}
 
 public:
   ~node_t() = default;
   node_t(const node_t &) = delete;
   node_t &operator=(const node_t &) = delete;
 
-  bool is_branch() const { return ntype_ == node_type_t::BRANCH; }
+  bool is_branch() const { return is_branch_; }
   node_t &get_prev() { return *prev_; }
   const node_t &get_prev() const { return *prev_; }
   node_t &get_next() { return *next_; }
@@ -126,16 +130,26 @@ public:
   auto get_sibling_iterator() { return sibling_iterator_t{this}; }
 
 protected:
-  void set_parent(branch_t *parent) { parent_ = parent; }
-  void set_prev(node_t *prev) { prev_ = prev; }
-  void set_next(node_t *next) { next_ = next; }
+  // To be called from branch node.
+  void insert(sibling_iterator_t it, node_t &n) {
+    node_t &left{it->get_prev()};
+    node_t &right{*it};
+    n.insert_between(left, right);
+  }
+
+private:
+  void insert_between(node_t &left, node_t &right) {
+    left.next_ = this;
+    prev_ = &left;
+    right.prev_ = this;
+    next_ = &right;
+    parent_ = left.parent_;
+  }
 };
 
 // Leaf node. Convenience class that should be used as a base of Leaf.
 template <typename Leaf, typename Branch>
 class leaf_t : public node_t<Leaf, Branch> {
-  friend class tree_t<Leaf, Branch>;
-
   using node_t = semitree::node_t<Leaf, Branch>;
   using node_type_t = typename node_t::node_type_t;
 
@@ -144,12 +158,6 @@ protected:
 
 public:
   ~leaf_t() = default;
-
-private:
-  // Hide these from derived classes.
-  using node_t::set_next;
-  using node_t::set_parent;
-  using node_t::set_prev;
 };
 
 // Parent node. Contains special sentinel node.
@@ -159,22 +167,14 @@ private:
 // last child is previous node of sentinel.
 template <typename Leaf, typename Branch>
 class branch_t : public node_t<Leaf, Branch> {
-  friend class tree_t<Leaf, Branch>;
-
   using node_t = semitree::node_t<Leaf, Branch>;
   using node_type_t = typename node_t::node_type_t;
+  using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
 
   // Sentinel node denoting end of children list.
   // On construction has parent and points always to itself.
   struct sentinel_t : public node_t {
-    sentinel_t(branch_t *parent) : node_t{node_type_t::SENTINEL} {
-      node_t::set_parent(parent);
-      node_t::set_prev(this);
-      node_t::set_next(this);
-    }
-
-    using node_t::set_next;
-    using node_t::set_prev;
+    sentinel_t(branch_t *parent) : node_t{parent} {}
   };
 
 private:
@@ -192,7 +192,18 @@ protected:
 public:
   ~branch_t() = default;
 
-  // TODO: add insertion methods.
+  // Insert node into position pointed by 'it'. Inserts BEFORE 'it'.
+  // After insertion 'n' becomes child of this node and can be
+  // accessed using '*--it'.
+  // Return value: 'it'.
+  sibling_iterator_t insert(sibling_iterator_t it, node_t &n) {
+    check_branch();
+    assert(it->has_parent() && "Cannot use orphan node as inserting point");
+    assert(&it->get_parent() == this &&
+           "Can insert only before iterator from this node children list");
+    node_t::insert(it, n);
+    return it;
+  }
 
   node_t &get_firstchild() {
     check_branch();
@@ -222,21 +233,6 @@ public:
   // TODO: implement const iterators.
   auto begin() const { return const_cast<branch_t *>(this)->begin(); }
   auto end() const { return const_cast<branch_t *>(this)->end(); }
-
-private:
-  // Hide these from derived classes.
-  using node_t::set_next;
-  using node_t::set_parent;
-  using node_t::set_prev;
-
-  void set_firstchild(node_t *fc) {
-    check_branch();
-    sent_.set_next(fc);
-  }
-  void set_lastchild(node_t *lc) {
-    check_branch();
-    sent_.set_prev(lc);
-  }
 };
 
 } // namespace semitree

@@ -22,24 +22,24 @@ BOOST_AUTO_TEST_SUITE(iteration)
 
 BOOST_AUTO_TEST_CASE(simple_sibling) {
   tree tr;
-  branch b;
   leaf l1{1};
   leaf l2{2};
-  tr.insert(b.end(), l1);
-  tr.insert(b.end(), l2);
+  tr.insert(tr.end(), l1);
+  tr.insert(tr.end(), l2);
 
-  auto res = std::accumulate(b.begin(), b.end(), 0, [](int acc, const node &n) {
-    return acc + n.get_data();
-  });
+  auto res =
+      std::accumulate(tr.begin(), tr.end(), 0, [](int acc, const node &n) {
+        return acc + n.get_data();
+      });
   BOOST_TEST(res == 3);
 
   res = std::accumulate(
-      std::reverse_iterator{b.end()}, std::reverse_iterator{b.begin()}, 0,
+      std::reverse_iterator{tr.end()}, std::reverse_iterator{tr.begin()}, 0,
       [](int acc, const node &n) { return acc + n.get_data(); });
   BOOST_TEST(res == 3);
 
   std::vector<int> ns;
-  std::transform(b.begin(), b.end(), std::reverse_iterator{b.end()},
+  std::transform(tr.begin(), tr.end(), std::reverse_iterator{tr.end()},
                  std::back_inserter(ns), [](const node &a, const node &b) {
                    return a.get_data() * b.get_data();
                  });
@@ -62,11 +62,13 @@ BOOST_AUTO_TEST_CASE(inorder) {
   //   l1{2}  b1{4}
   //        b2{6}  l2{3}
   //        l3{5}
-  tr.insert(root.end(), l1);
-  tr.insert(root.end(), b1);
-  tr.insert(b1.begin(), l2);
-  tr.insert(b1.begin(), b2);
-  tr.insert(b2.end(), l3);
+  auto ino_ins_pt = tr.inorder_end();
+  tr.insert(ino_ins_pt, root);
+  tr.insert(--ino_ins_pt, l1);
+  tr.insert(ino_ins_pt, b1);
+  tr.insert(--ino_ins_pt, l2);
+  tr.insert(--ino_ins_pt, b2);
+  tr.insert(--ino_ins_pt, l3);
 
   // Test children of each branch.
   auto sib_sum = [](int acc, const node &n) { return acc + n.get_data(); };
@@ -75,26 +77,26 @@ BOOST_AUTO_TEST_CASE(inorder) {
   BOOST_TEST(std::accumulate(b2.begin(), b2.end(), 0, sib_sum) == 5);
 
   // Test inorder traversal.
-  ino_it beg{&root, false};
-  ino_it end{&root, true};
+  auto beg{tr.inorder_begin()};
+  auto end{tr.inorder_end()};
   auto rbeg = std::reverse_iterator{end};
   auto rend = std::reverse_iterator{beg};
   auto ino_sum = [](int acc, const auto &desc) {
     return acc + desc.ref.get_data();
   };
-  // 1+2+4+6+5+6+3+4 == 31.
-  BOOST_TEST(std::accumulate(beg, end, 0, ino_sum) == 31);
-  BOOST_TEST(std::accumulate(rbeg, rend, 0, ino_sum) == 31);
+  // 1+2+4+6+5+6+3+4+1 == 32.
+  BOOST_TEST(std::accumulate(beg, end, 0, ino_sum) == 32);
+  BOOST_TEST(std::accumulate(rbeg, rend, 0, ino_sum) == 32);
   std::vector<int> ns;
   auto nsbi = std::back_inserter(ns);
   auto ino_zipmul = [](const auto &d1, const auto &d2) {
     return d1.ref.get_data() * d2.ref.get_data();
   };
-  // 1,2,4,6,5,6,3,4
-  // 4,3,6,5,6,4,2,1
-  // 1*4+2*3+4*6+6*5+5*6+6*4+3*2+4*1 == 128.
+  // 1,2,4,6,5,6,3,4,1
+  // 1,4,3,6,5,6,4,2,1
+  // 1*1+2*4+4*3+6*6+5*5+6*6+3*4+4*2+1*1 == 139
   std::transform(beg, end, rbeg, nsbi, ino_zipmul);
-  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 128);
+  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 139);
 
   // Test preorder traversal.
   auto pre_sum = [](int acc, const auto &desc) {
@@ -119,11 +121,11 @@ BOOST_AUTO_TEST_CASE(inorder) {
     return d1val * d2val;
   };
   ns.clear();
-  // 1,2,4,6,5,0,3,0
-  // 0,3,0,5,6,4,2,1
-  // 0*3+2*3+4*0+6*5+5*6+0*4+3*2+0*1 == 72.
+  // 1,2,4,6,5,0,3,0,0
+  // 0,0,3,0,5,6,4,2,1
+  // 1*0+2*0+4*3+6*0+5*5+0*6+3*4+0*2+0*1 == 49
   std::transform(beg, end, rbeg, nsbi, unvisited_zipmul);
-  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 72);
+  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 49);
 
   // Test postorder traversal.
   auto post_sum = [](int acc, const auto &desc) {
@@ -131,9 +133,9 @@ BOOST_AUTO_TEST_CASE(inorder) {
       return acc;
     return acc + desc.ref.get_data();
   };
-  // 2+5+6+3+4 == 20.
-  BOOST_TEST(std::accumulate(beg, end, 0, post_sum) == 20);
-  BOOST_TEST(std::accumulate(rbeg, rend, 0, post_sum) == 20);
+  // 2+5+6+3+4+1 == 21.
+  BOOST_TEST(std::accumulate(beg, end, 0, post_sum) == 21);
+  BOOST_TEST(std::accumulate(rbeg, rend, 0, post_sum) == 21);
 
   // Visited zipmul check to verify order.
   // Actually this is not postorder zip. Skipped nodes return 0,
@@ -148,11 +150,11 @@ BOOST_AUTO_TEST_CASE(inorder) {
     return d1val * d2val;
   };
   ns.clear();
-  // 0,2,0,0,5,6,3,4
-  // 4,3,6,5,0,0,2,0
-  // 0*4+2*3+0*6+0*5+5*0+6*0+3*2+4*0 == 12.
+  // 0,2,0,0,5,6,3,4,1
+  // 1,4,3,6,5,0,0,2,0
+  // 0*1+2*4+0*3+0*6+5*5+6*0+3*0+4*2+1*0 == 41
   std::transform(beg, end, rbeg, nsbi, visited_zipmul);
-  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 12);
+  BOOST_TEST(std::accumulate(ns.begin(), ns.end(), 0) == 41);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // iteration
