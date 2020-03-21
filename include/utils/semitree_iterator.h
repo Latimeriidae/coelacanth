@@ -53,8 +53,8 @@ private:
   node_t *ptr_;
 
 public:
-  sibling_iterator_t() : ptr_(nullptr) {}
-  explicit sibling_iterator_t(node_t *ptr) : ptr_(ptr) {}
+  sibling_iterator_t() : ptr_{nullptr} {}
+  explicit sibling_iterator_t(node_t *ptr) : ptr_{ptr} {}
 
   reference operator*() const { return *ptr_; }
   pointer operator->() const { return ptr_; }
@@ -64,7 +64,7 @@ public:
     return *this;
   }
   sibling_iterator_t operator++(int) {
-    auto it = *this;
+    auto it{*this};
     ++(*this);
     return it;
   }
@@ -74,7 +74,7 @@ public:
     return *this;
   }
   sibling_iterator_t operator--(int) {
-    auto it = *this;
+    auto it{*this};
     --(*this);
     return it;
   }
@@ -117,7 +117,7 @@ template <typename Leaf, typename Branch> class inorder_iterator_t final {
     bool visited_;
 
     internal_value_t(node_t *ptr, bool visited)
-        : ptr_(ptr), visited_(visited) {}
+        : ptr_{ptr}, visited_{visited} {}
   };
 
   // Reference type that user will see calling operator*.
@@ -126,7 +126,7 @@ template <typename Leaf, typename Branch> class inorder_iterator_t final {
     node_t &ref;
     bool visited;
 
-    internal_ref_t(node_t &r, bool v) : ref(r), visited(v) {}
+    internal_ref_t(node_t &r, bool v) : ref{r}, visited{v} {}
   };
 
   // Proxy class to implement complex pointer to
@@ -139,7 +139,7 @@ template <typename Leaf, typename Branch> class inorder_iterator_t final {
     value_type ref_;
 
   public:
-    pointer_value_t(value_type &&ref) : ref_(std::move(ref)) {}
+    pointer_value_t(value_type &&ref) : ref_{std::move(ref)} {}
     value_type *operator->() { return &ref_; }
   };
 
@@ -154,22 +154,22 @@ private:
   internal_value_t val_;
 
 public:
-  inorder_iterator_t() : val_(nullptr, false) {}
-  inorder_iterator_t(node_t *ptr, bool visited) : val_(ptr, visited) {}
+  inorder_iterator_t() : val_{nullptr, false} {}
+  inorder_iterator_t(node_t *ptr, bool visited) : val_{ptr, visited} {}
 
-  reference operator*() const { return reference(*val_.ptr_, val_.visited_); }
-  pointer operator->() const { return pointer_value_t(**this); }
+  reference operator*() const { return reference{*val_.ptr_, val_.visited_}; }
+  pointer operator->() const { return pointer_value_t{**this}; }
 
   inorder_iterator_t &operator++();
   inorder_iterator_t operator++(int) {
-    auto it = *this;
+    auto it{*this};
     ++(*this);
     return it;
   }
 
   inorder_iterator_t &operator--();
   inorder_iterator_t operator--(int) {
-    auto it = *this;
+    auto it{*this};
     --(*this);
     return it;
   }

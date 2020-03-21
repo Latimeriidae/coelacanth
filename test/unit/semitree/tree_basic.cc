@@ -130,8 +130,8 @@ BOOST_AUTO_TEST_CASE(sibling) {
   BOOST_TEST(&left.get_next() == &right);
   BOOST_TEST(&left == &right.get_prev());
 
-  auto lit = left.get_sibling_iterator();
-  auto rit = right.get_sibling_iterator();
+  auto lit{left.get_sibling_iterator()};
+  auto rit{right.get_sibling_iterator()};
   test_simple_iterators(lit, rit);
 }
 
@@ -184,13 +184,13 @@ BOOST_AUTO_TEST_CASE(inorder_branch_tree) {
   BOOST_TEST(b.begin() != b.end());
   BOOST_TEST(&b.get_firstchild() == &l);
   BOOST_TEST(&b.get_lastchild() == &l);
-  auto slit = l.get_sibling_iterator();
+  auto slit{l.get_sibling_iterator()};
   BOOST_TEST(b.begin() == slit);
   BOOST_TEST(--b.end() == slit);
   BOOST_TEST(l.has_parent());
   BOOST_TEST(&l.get_parent() == &b);
 
-  auto nbit = bit;
+  auto nbit{bit};
   ino_it ilit{&l, false};
   BOOST_TEST(--nbit == ilit);
   BOOST_TEST(++nbit == bit);

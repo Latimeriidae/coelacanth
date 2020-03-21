@@ -101,7 +101,7 @@ private:
 
 protected:
   node_t(node_type_t type)
-      : parent_(nullptr), prev_(nullptr), next_(nullptr), ntype_(type) {}
+      : parent_{nullptr}, prev_{nullptr}, next_{nullptr}, ntype_{type} {}
 
 public:
   ~node_t() = default;
@@ -123,7 +123,7 @@ public:
     return *parent_;
   }
 
-  auto get_sibling_iterator() { return sibling_iterator_t(this); }
+  auto get_sibling_iterator() { return sibling_iterator_t{this}; }
 
 protected:
   void set_parent(branch_t *parent) { parent_ = parent; }
@@ -140,7 +140,7 @@ class leaf_t : public node_t<Leaf, Branch> {
   using node_type_t = typename node_t::node_type_t;
 
 protected:
-  leaf_t() : node_t(node_type_t::LEAF) {}
+  leaf_t() : node_t{node_type_t::LEAF} {}
 
 public:
   ~leaf_t() = default;
@@ -167,7 +167,7 @@ class branch_t : public node_t<Leaf, Branch> {
   // Sentinel node denoting end of children list.
   // On construction has parent and points always to itself.
   struct sentinel_t : public node_t {
-    sentinel_t(branch_t *parent) : node_t(node_type_t::SENTINEL) {
+    sentinel_t(branch_t *parent) : node_t{node_type_t::SENTINEL} {
       node_t::set_parent(parent);
       node_t::set_prev(this);
       node_t::set_next(this);
@@ -187,7 +187,7 @@ private:
   }
 
 protected:
-  branch_t() : node_t(node_type_t::BRANCH), sent_(this) {}
+  branch_t() : node_t{node_type_t::BRANCH}, sent_{this} {}
 
 public:
   ~branch_t() = default;
@@ -216,8 +216,8 @@ public:
     return &sent_.get_next() == &sent_;
   }
 
-  auto begin() { return sibling_iterator_t(&get_firstchild()); }
-  auto end() { return sibling_iterator_t(&sent_); }
+  auto begin() { return sibling_iterator_t{&get_firstchild()}; }
+  auto end() { return sibling_iterator_t{&sent_}; }
 
   // TODO: implement const iterators.
   auto begin() const { return const_cast<branch_t *>(this)->begin(); }

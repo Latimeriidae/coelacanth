@@ -34,12 +34,12 @@ BOOST_AUTO_TEST_CASE(simple_sibling) {
   BOOST_TEST(res == 3);
 
   res = std::accumulate(
-      std::reverse_iterator(b.end()), std::reverse_iterator(b.begin()), 0,
+      std::reverse_iterator{b.end()}, std::reverse_iterator{b.begin()}, 0,
       [](int acc, const node &n) { return acc + n.get_data(); });
   BOOST_TEST(res == 3);
 
   std::vector<int> ns;
-  std::transform(b.begin(), b.end(), std::reverse_iterator(b.end()),
+  std::transform(b.begin(), b.end(), std::reverse_iterator{b.end()},
                  std::back_inserter(ns), [](const node &a, const node &b) {
                    return a.get_data() * b.get_data();
                  });
@@ -77,8 +77,8 @@ BOOST_AUTO_TEST_CASE(inorder) {
   // Test inorder traversal.
   ino_it beg{&root, false};
   ino_it end{&root, true};
-  auto rbeg = std::reverse_iterator(end);
-  auto rend = std::reverse_iterator(beg);
+  auto rbeg = std::reverse_iterator{end};
+  auto rend = std::reverse_iterator{beg};
   auto ino_sum = [](int acc, const auto &desc) {
     return acc + desc.ref.get_data();
   };

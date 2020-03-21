@@ -50,7 +50,7 @@ private:
   }
 
 public:
-  indent_filter_t(int level_spaces) : level_spaces_(level_spaces) {
+  indent_filter_t(int level_spaces) : level_spaces_{level_spaces} {
     assert(level_spaces_ >= 0 && "Expected non-negative value");
   }
 

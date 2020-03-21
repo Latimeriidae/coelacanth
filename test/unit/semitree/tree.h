@@ -36,7 +36,7 @@ class leaf : public semitree::leaf_t<leaf, branch> {
 
 public:
   leaf() = default;
-  explicit leaf(int d) : data_(d) {}
+  explicit leaf(int d) : data_{d} {}
 
   int get_data() const { return data_; }
 };
@@ -45,19 +45,19 @@ class branch : public semitree::branch_t<leaf, branch> {
 
 public:
   branch() = default;
-  explicit branch(int d) : data_(d) {}
+  explicit branch(int d) : data_{d} {}
 
   int get_data() const { return data_; }
 };
 
 class tree : public semitree::tree_t<leaf, branch> {};
 
-inline std::ostream &boost_test_print_type(std::ostream &os, const sib_it &it) {
+inline std::ostream &boost_test_print_type(std::ostream &os, sib_it it) {
   return os << "sib_it(" << &*it << ")";
 }
 
-inline std::ostream &boost_test_print_type(std::ostream &os, const ino_it &it) {
-  auto val = *it;
+inline std::ostream &boost_test_print_type(std::ostream &os, ino_it it) {
+  auto val{*it};
   return os << "ino_it(" << &val.ref
             << (val.visited ? ",visited" : ",not visited") << ")";
 }
