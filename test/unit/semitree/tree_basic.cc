@@ -112,6 +112,29 @@ BOOST_AUTO_TEST_CASE(inorder_iterator) {
   BOOST_TEST(cbit2 != bit1);
 }
 
+BOOST_AUTO_TEST_CASE(mixed_iterators) {
+  sib_it nulls;
+  ino_it nulli;
+  BOOST_TEST(nulls == nulli);
+  ino_it nulli2{nulls, false};
+  BOOST_TEST(nulli == nulli2);
+
+  tree tr;
+  BOOST_TEST(tr.end() == tr.inorder_end());
+  BOOST_TEST(tr.begin() == tr.inorder_end());
+  leaf l;
+  sib_it oldit = tr.insert(tr.inorder_end(), l);
+  BOOST_TEST(oldit == tr.inorder_end());
+  BOOST_TEST(oldit != tr.inorder_begin());
+  BOOST_TEST(--tr.inorder_end() == l.get_sibling_iterator());
+  BOOST_TEST(tr.inorder_begin() == l.get_sibling_iterator());
+
+  BOOST_TEST(nulli != tr.inorder_end());
+  BOOST_TEST(nulli2 != tr.end());
+  BOOST_TEST(nulls != tr.begin());
+  BOOST_TEST(nulls != tr.inorder_begin());
+}
+
 BOOST_AUTO_TEST_CASE(empty_tree_iterator) {
   tree tr;
   BOOST_TEST(tr.empty());

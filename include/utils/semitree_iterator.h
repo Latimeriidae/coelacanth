@@ -39,11 +39,16 @@ namespace semitree {
 // Avoid cyclic dependency on nodes.
 template <typename Leaf, typename Branch> class node_t;
 template <typename Leaf, typename Branch> class branch_t;
+template <typename Leaf, typename Branch, bool IsConst>
+class inorder_iterator_base_t;
 
 // Simple bidirectional node iterator.
 template <typename Leaf, typename Branch, bool IsConst>
 class sibling_iterator_base_t final {
   using node_t = semitree::node_t<Leaf, Branch>;
+  using branch_t = semitree::branch_t<Leaf, Branch>;
+  using inorder_iterator_base_t =
+      semitree::inorder_iterator_base_t<Leaf, Branch, IsConst>;
 
 public:
   using difference_type = std::ptrdiff_t;
@@ -58,6 +63,18 @@ private:
 public:
   sibling_iterator_base_t() = default;
   explicit sibling_iterator_base_t(pointer ptr) noexcept : ptr_{ptr} {}
+
+  // Ctor from inorder iterator. If 'it' points to visited branch then
+  // new iterator will point to 'it->end()'. Otherwise, just copy pointer.
+  sibling_iterator_base_t(inorder_iterator_base_t it) noexcept
+      : ptr_{it.is_null() ? nullptr : &it->ref} {
+    if (!ptr_)
+      return;
+    if (ptr_->is_branch() && it->visited) {
+      using br_t = std::conditional_t<IsConst, const branch_t *, branch_t *>;
+      ptr_ = static_cast<br_t>(ptr_)->end().ptr_;
+    }
+  }
 
   sibling_iterator_base_t(const sibling_iterator_base_t &) = default;
   sibling_iterator_base_t &operator=(const sibling_iterator_base_t &) = default;
@@ -230,6 +247,10 @@ public:
     // If pointers differ then iterators differ.
     if (lhs.val_.ptr_ != rhs.val_.ptr_)
       return true;
+
+    // There can be singular iterators.
+    if (!lhs.val_.ptr_)
+      return false;
 
     const bool lbr = lhs.val_.ptr_->is_branch();
     const bool rbr = rhs.val_.ptr_->is_branch();

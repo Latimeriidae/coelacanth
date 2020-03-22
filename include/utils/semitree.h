@@ -56,6 +56,10 @@ public:
   }
 
   // Inorder insertion. Inserts BEFORE iterator.
+  // Return value: 'it'.
+  // Be careful passing inorder_begin from empty branch,
+  // because returned iterator will point to inorder_end
+  // since before insertion 'inorder_begin == inorder_end'.
   inorder_iterator_t insert(const_inorder_iterator_t it, node_t &n);
 };
 
