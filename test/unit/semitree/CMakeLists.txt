@@ -1,6 +1,7 @@
 set(SRCS
   tree_basic.cc
   tree_iteration.cc
+  tree_type_traits.cc
   )
 
 # Should be OBJECT because in other case linker

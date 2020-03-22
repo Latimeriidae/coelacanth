@@ -57,6 +57,16 @@ BOOST_AUTO_TEST_CASE(sibling_iterator) {
 
   BOOST_TEST(lit1 != bit1);
   BOOST_TEST(lit1 != bit2);
+
+  const branch &cb{b};
+  const_sib_it cbit1{&cb};
+  const_sib_it cbit2{bit1};
+  BOOST_TEST(cbit1 == cbit1);
+  BOOST_TEST(cbit1 == cbit2);
+  BOOST_TEST(cbit1 == bit1);
+  BOOST_TEST(bit2 != cbit2);
+  BOOST_TEST(cb.begin() == b.begin());
+  BOOST_TEST(b.end() == cb.end());
 }
 
 // Check that inorder iterators work for one node.
@@ -130,7 +140,8 @@ BOOST_AUTO_TEST_CASE(sibling) {
   leaf right;
   //   root
   // left right
-  tr.insert(tr.end(), right);
+  auto insit = tr.insert(tr.end(), right);
+  BOOST_TEST(insit == tr.end());
   tr.insert(right.get_sibling_iterator(), left);
   BOOST_TEST(&left.get_next() == &right);
   BOOST_TEST(&left == &right.get_prev());

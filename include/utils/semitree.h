@@ -32,6 +32,8 @@ public:
   using branch_t = semitree::branch_t<Leaf, Branch>;
 
   using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
+  using const_sibling_iterator_t =
+      semitree::const_sibling_iterator_t<Leaf, Branch>;
   using inorder_iterator_t = semitree::inorder_iterator_t<Leaf, Branch>;
 
 public:

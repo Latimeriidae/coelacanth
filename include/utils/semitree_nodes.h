@@ -85,6 +85,8 @@ template <typename Leaf, typename Branch>
 class node_t : public node_interface_t<Leaf, Branch> {
   using branch_t = semitree::branch_t<Leaf, Branch>;
   using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
+  using const_sibling_iterator_t =
+      semitree::const_sibling_iterator_t<Leaf, Branch>;
 
 protected:
   // There are two fundamental types of nodes -- leaf and branch.
@@ -128,13 +130,14 @@ public:
   }
 
   auto get_sibling_iterator() { return sibling_iterator_t{this}; }
+  auto get_sibling_iterator() const { return const_sibling_iterator_t{this}; }
 
 protected:
   // To be called from branch node.
-  void insert(sibling_iterator_t it, node_t &n) {
-    node_t &left{it->get_prev()};
-    node_t &right{*it};
-    n.insert_between(left, right);
+  void insert(const_sibling_iterator_t it, node_t &n) {
+    const node_t &left{it->get_prev()};
+    const node_t &right{*it};
+    n.insert_between(const_cast<node_t &>(left), const_cast<node_t &>(right));
   }
 
 private:
@@ -170,6 +173,8 @@ class branch_t : public node_t<Leaf, Branch> {
   using node_t = semitree::node_t<Leaf, Branch>;
   using node_type_t = typename node_t::node_type_t;
   using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
+  using const_sibling_iterator_t =
+      semitree::const_sibling_iterator_t<Leaf, Branch>;
 
   // Sentinel node denoting end of children list.
   // On construction has parent and points always to itself.
@@ -196,13 +201,13 @@ public:
   // After insertion 'n' becomes child of this node and can be
   // accessed using '*--it'.
   // Return value: 'it'.
-  sibling_iterator_t insert(sibling_iterator_t it, node_t &n) {
+  sibling_iterator_t insert(const_sibling_iterator_t it, node_t &n) {
     check_branch();
     assert(it->has_parent() && "Cannot use orphan node as inserting point");
     assert(&it->get_parent() == this &&
            "Can insert only before iterator from this node children list");
     node_t::insert(it, n);
-    return it;
+    return sibling_iterator_t{&n.get_next()};
   }
 
   node_t &get_firstchild() {
@@ -230,9 +235,8 @@ public:
   auto begin() { return sibling_iterator_t{&get_firstchild()}; }
   auto end() { return sibling_iterator_t{&sent_}; }
 
-  // TODO: implement const iterators.
-  auto begin() const { return const_cast<branch_t *>(this)->begin(); }
-  auto end() const { return const_cast<branch_t *>(this)->end(); }
+  auto begin() const { return const_sibling_iterator_t{&get_firstchild()}; }
+  auto end() const { return const_sibling_iterator_t{&sent_}; }
 };
 
 } // namespace semitree

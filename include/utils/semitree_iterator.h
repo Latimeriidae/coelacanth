@@ -40,60 +40,72 @@ template <typename Leaf, typename Branch> class branch_t;
 template <typename Leaf, typename Branch> class inorder_iterator_t;
 
 // Simple bidirectional node iterator.
-template <typename Leaf, typename Branch> class sibling_iterator_t final {
+template <typename Leaf, typename Branch, bool IsConst>
+class sibling_iterator_base_t final {
   using node_t = semitree::node_t<Leaf, Branch>;
 
 public:
   using difference_type = std::ptrdiff_t;
-  using value_type = node_t;
+  using value_type = std::conditional_t<IsConst, const node_t, node_t>;
   using pointer = value_type *;
   using reference = value_type &;
   using iterator_category = std::bidirectional_iterator_tag;
 
 private:
-  node_t *ptr_;
+  pointer ptr_ = nullptr;
 
 public:
-  sibling_iterator_t() : ptr_{nullptr} {}
-  explicit sibling_iterator_t(node_t *ptr) : ptr_{ptr} {}
+  sibling_iterator_base_t() = default;
+  explicit sibling_iterator_base_t(pointer ptr) noexcept : ptr_{ptr} {}
 
-  reference operator*() const { return *ptr_; }
-  pointer operator->() const { return ptr_; }
+  sibling_iterator_base_t(const sibling_iterator_base_t &) = default;
+  sibling_iterator_base_t &operator=(const sibling_iterator_base_t &) = default;
 
-  sibling_iterator_t &operator++() {
+  // Ctor for const_iterator from iterator.
+  template <bool IsConst_ = IsConst, typename = std::enable_if_t<IsConst_>>
+  sibling_iterator_base_t(
+      sibling_iterator_base_t<Leaf, Branch, !IsConst_> rhs) noexcept
+      : ptr_{rhs.operator->()} {}
+
+  reference operator*() const noexcept { return *ptr_; }
+  pointer operator->() const noexcept { return ptr_; }
+
+  sibling_iterator_base_t &operator++() noexcept {
     ptr_ = &ptr_->get_next();
     return *this;
   }
-  sibling_iterator_t operator++(int) {
+  sibling_iterator_base_t operator++(int) noexcept {
     auto it{*this};
     ++(*this);
     return it;
   }
 
-  sibling_iterator_t &operator--() {
+  sibling_iterator_base_t &operator--() noexcept {
     ptr_ = &ptr_->get_prev();
     return *this;
   }
-  sibling_iterator_t operator--(int) {
+  sibling_iterator_base_t operator--(int) noexcept {
     auto it{*this};
     --(*this);
     return it;
   }
 
-  bool equals(sibling_iterator_t rhs) const { return ptr_ == rhs.ptr_; }
+  friend bool operator==(sibling_iterator_base_t lhs,
+                         sibling_iterator_base_t rhs) noexcept {
+    return lhs.ptr_ == rhs.ptr_;
+  }
+
+  friend bool operator!=(sibling_iterator_base_t lhs,
+                         sibling_iterator_base_t rhs) noexcept {
+    return lhs.ptr_ != rhs.ptr_;
+  }
 };
 
 template <typename Leaf, typename Branch>
-inline bool operator==(sibling_iterator_t<Leaf, Branch> lhs,
-                       sibling_iterator_t<Leaf, Branch> rhs) {
-  return lhs.equals(rhs);
-}
+using sibling_iterator_t = sibling_iterator_base_t<Leaf, Branch, false>;
 
 template <typename Leaf, typename Branch>
-inline bool operator!=(sibling_iterator_t<Leaf, Branch> lhs,
-                       sibling_iterator_t<Leaf, Branch> rhs) {
-  return !(lhs == rhs);
-}
+using const_sibling_iterator_t = sibling_iterator_base_t<Leaf, Branch, true>;
 
 // Bidirectional inorder iterator. Its structure is more complicated than
 // sibling iterator one. In addition to pointer to node, it contains
@@ -107,7 +119,6 @@ inline bool operator!=(sibling_iterator_t<Leaf, Branch> lhs,
 template <typename Leaf, typename Branch> class inorder_iterator_t final {
   using node_t = semitree::node_t<Leaf, Branch>;
   using branch_t = semitree::branch_t<Leaf, Branch>;
-  using sibling_iterator_t = semitree::sibling_iterator_t<Leaf, Branch>;
 
   // Internal value that iterator contains.
   // Consists of pointer to node and visited field.

@@ -29,6 +29,7 @@ public:
 
 using node = semitree::node_t<leaf, branch>;
 using sib_it = semitree::sibling_iterator_t<leaf, branch>;
+using const_sib_it = semitree::const_sibling_iterator_t<leaf, branch>;
 using ino_it = semitree::inorder_iterator_t<leaf, branch>;
 
 class leaf : public semitree::leaf_t<leaf, branch> {
@@ -53,6 +54,10 @@ public:
 class tree : public semitree::tree_t<leaf, branch> {};
 
 inline std::ostream &boost_test_print_type(std::ostream &os, sib_it it) {
+  return os << "sib_it(" << &*it << ")";
+}
+
+inline std::ostream &boost_test_print_type(std::ostream &os, const_sib_it it) {
   return os << "sib_it(" << &*it << ")";
 }
 
