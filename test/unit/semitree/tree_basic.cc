@@ -103,6 +103,13 @@ BOOST_AUTO_TEST_CASE(inorder_iterator) {
   BOOST_TEST(lit1 != bit2);
   BOOST_TEST(lit2 != bit2);
   BOOST_TEST(lit3 != bit2);
+
+  const_ino_it cbit1{bit1};
+  BOOST_TEST(cbit1 == bit1);
+  BOOST_TEST(bit2 != cbit1);
+  const_ino_it cbit2{b.end(), false};
+  BOOST_TEST(bit2 == cbit2);
+  BOOST_TEST(cbit2 != bit1);
 }
 
 BOOST_AUTO_TEST_CASE(empty_tree_iterator) {
@@ -160,7 +167,8 @@ BOOST_AUTO_TEST_CASE(inorder_leaf) {
   //   root
   // left right
   tr.insert(tr.begin(), right);
-  tr.insert(rit, left);
+  auto oldit = tr.insert(rit, left);
+  BOOST_TEST(oldit == rit);
   BOOST_TEST(&left.get_next() == &right);
   BOOST_TEST(&left == &right.get_prev());
 
@@ -177,7 +185,8 @@ BOOST_AUTO_TEST_CASE(inorder_branch_list) {
   // root
   // b  l
   tr.insert(tr.begin(), b);
-  tr.insert(bit, l);
+  auto oldit = tr.insert(bit, l);
+  BOOST_TEST(oldit == bit);
   ino_it lit{&l, false};
   test_simple_iterators(lit, bit);
 }
@@ -192,7 +201,8 @@ BOOST_AUTO_TEST_CASE(inorder_branch_tree) {
   //  b
   //  l
   tr.insert(tr.begin(), b);
-  tr.insert(bit, l);
+  auto oldit = tr.insert(bit, l);
+  BOOST_TEST(oldit == bit);
   BOOST_TEST(!b.empty());
   BOOST_TEST(b.begin() != b.end());
   BOOST_TEST(&b.get_firstchild() == &l);

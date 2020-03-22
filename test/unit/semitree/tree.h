@@ -31,6 +31,7 @@ using node = semitree::node_t<leaf, branch>;
 using sib_it = semitree::sibling_iterator_t<leaf, branch>;
 using const_sib_it = semitree::const_sibling_iterator_t<leaf, branch>;
 using ino_it = semitree::inorder_iterator_t<leaf, branch>;
+using const_ino_it = semitree::const_inorder_iterator_t<leaf, branch>;
 
 class leaf : public semitree::leaf_t<leaf, branch> {
   int data_ = 0;
@@ -62,6 +63,12 @@ inline std::ostream &boost_test_print_type(std::ostream &os, const_sib_it it) {
 }
 
 inline std::ostream &boost_test_print_type(std::ostream &os, ino_it it) {
+  auto val{*it};
+  return os << "ino_it(" << &val.ref
+            << (val.visited ? ",visited" : ",not visited") << ")";
+}
+
+inline std::ostream &boost_test_print_type(std::ostream &os, const_ino_it it) {
   auto val{*it};
   return os << "ino_it(" << &val.ref
             << (val.visited ? ",visited" : ",not visited") << ")";

@@ -29,7 +29,9 @@
 
 #pragma once
 
+#include <cassert>
 #include <iterator>
+#include <type_traits>
 #include <utility>
 
 namespace semitree {
@@ -37,7 +39,6 @@ namespace semitree {
 // Avoid cyclic dependency on nodes.
 template <typename Leaf, typename Branch> class node_t;
 template <typename Leaf, typename Branch> class branch_t;
-template <typename Leaf, typename Branch> class inorder_iterator_t;
 
 // Simple bidirectional node iterator.
 template <typename Leaf, typename Branch, bool IsConst>
@@ -116,27 +117,36 @@ using const_sibling_iterator_t = sibling_iterator_base_t<Leaf, Branch, true>;
 // Presense of visited field forces iterator to be more complex structure.
 // To support visited field there are some internal helper classes used
 // as proxy classes, for example, ''pointer_value''.
-template <typename Leaf, typename Branch> class inorder_iterator_t final {
+template <typename Leaf, typename Branch, bool IsConst>
+class inorder_iterator_base_t final {
   using node_t = semitree::node_t<Leaf, Branch>;
   using branch_t = semitree::branch_t<Leaf, Branch>;
+  using sibling_iterator_base_t =
+      semitree::sibling_iterator_base_t<Leaf, Branch, IsConst>;
+
+  using internal_value_type = std::conditional_t<IsConst, const node_t, node_t>;
+  using internal_pointer = internal_value_type *;
+  using internal_reference = internal_value_type &;
 
   // Internal value that iterator contains.
   // Consists of pointer to node and visited field.
   struct internal_value_t final {
-    node_t *ptr_;
-    bool visited_;
+    internal_pointer ptr_ = nullptr;
+    bool visited_ = false;
 
-    internal_value_t(node_t *ptr, bool visited)
+    internal_value_t() = default;
+    internal_value_t(internal_pointer ptr, bool visited) noexcept
         : ptr_{ptr}, visited_{visited} {}
   };
 
   // Reference type that user will see calling operator*.
   // Contains reference to node and visited boolean.
   struct internal_ref_t final {
-    node_t &ref;
+    internal_reference ref;
     bool visited;
 
-    internal_ref_t(node_t &r, bool v) : ref{r}, visited{v} {}
+    internal_ref_t(internal_reference r, bool v) noexcept
+        : ref{r}, visited{v} {}
   };
 
   // Proxy class to implement complex pointer to
@@ -149,8 +159,8 @@ template <typename Leaf, typename Branch> class inorder_iterator_t final {
     value_type ref_;
 
   public:
-    pointer_value_t(value_type &&ref) : ref_{std::move(ref)} {}
-    value_type *operator->() { return &ref_; }
+    pointer_value_t(value_type &&ref) noexcept : ref_{std::move(ref)} {}
+    value_type *operator->() noexcept { return &ref_; }
   };
 
 public:
@@ -164,42 +174,76 @@ private:
   internal_value_t val_;
 
 public:
-  inorder_iterator_t() : val_{nullptr, false} {}
-  inorder_iterator_t(node_t *ptr, bool visited) : val_{ptr, visited} {}
+  inorder_iterator_base_t() = default;
+  inorder_iterator_base_t(internal_pointer ptr, bool visited) noexcept
+      : val_{ptr, visited} {}
 
-  reference operator*() const { return reference{*val_.ptr_, val_.visited_}; }
-  pointer operator->() const { return pointer_value_t{**this}; }
+  // Ctor from sibling iterator and visited state.
+  // If 'it' points to leaf then visited state is ignored.
+  // If 'it' is past-the-end iterator then new inorder iterator
+  // points to visited parent and 'visited' flag is ignored.
+  // In this case insert will behave identical when it is called either with
+  // 'it' or with created inorder iterator.
+  inorder_iterator_base_t(sibling_iterator_base_t it, bool visited) noexcept
+      : val_{it.operator->(), visited} {
+    if (is_null())
+      return;
+    assert(it->has_parent() && "Attempt to create iterator from orphan node");
+    if (it->get_parent().end() != it)
+      return;
+    val_.ptr_ = &it->get_parent();
+    val_.visited_ = true;
+  }
 
-  inorder_iterator_t &operator++();
-  inorder_iterator_t operator++(int) {
+  inorder_iterator_base_t(const inorder_iterator_base_t &) = default;
+  inorder_iterator_base_t &operator=(const inorder_iterator_base_t &) = default;
+
+  // Ctor for constant iterator from non-constant.
+  template <bool IsConst_ = IsConst, typename = std::enable_if_t<IsConst_>>
+  inorder_iterator_base_t(
+      inorder_iterator_base_t<Leaf, Branch, !IsConst_> rhs) noexcept
+      : val_{(rhs.is_null() ? nullptr : &rhs->ref), rhs->visited} {}
+
+  bool is_null() const noexcept { return !val_.ptr_; }
+
+  reference operator*() const noexcept {
+    return reference{*val_.ptr_, val_.visited_};
+  }
+  pointer operator->() const noexcept { return pointer{**this}; }
+
+  inorder_iterator_base_t &operator++() noexcept;
+  inorder_iterator_base_t operator++(int) noexcept {
     auto it{*this};
     ++(*this);
     return it;
   }
 
-  inorder_iterator_t &operator--();
-  inorder_iterator_t operator--(int) {
+  inorder_iterator_base_t &operator--() noexcept;
+  inorder_iterator_base_t operator--(int) noexcept {
     auto it{*this};
     --(*this);
     return it;
   }
 
-  bool equals(inorder_iterator_t rhs) const {
-    // Comparison of simple nodes. Just look at the pointers.
-    if (!val_.ptr_->is_branch() && !rhs.val_.ptr_->is_branch()) {
-      return val_.ptr_ == rhs.val_.ptr_;
-    }
+  friend bool operator!=(inorder_iterator_base_t lhs,
+                         inorder_iterator_base_t rhs) noexcept {
+    // If pointers differ then iterators differ.
+    if (lhs.val_.ptr_ != rhs.val_.ptr_)
+      return true;
 
-    if (val_.ptr_->is_branch()) {
-      // Parent node and parent node.
-      // They are equal only if all internal state is equal.
-      if (rhs.val_.ptr_->is_branch())
-        return val_.ptr_ == rhs.val_.ptr_ && val_.visited_ == rhs.val_.visited_;
-      // Parent node and simple node are always not equal.
-      return false;
-    }
-    // The same as in previous comment.
-    return false;
+    const bool lbr = lhs.val_.ptr_->is_branch();
+    const bool rbr = rhs.val_.ptr_->is_branch();
+    // If both lhs and rhs are branches or leafs, then leafs are equal,
+    // and branches are not equal only if visited state differs.
+    if (lbr == rbr)
+      return lbr && lhs.val_.visited_ != rhs.val_.visited_;
+    // All other combinations are not equal.
+    return true;
+  }
+
+  friend bool operator==(inorder_iterator_base_t lhs,
+                         inorder_iterator_base_t rhs) noexcept {
+    return !(lhs != rhs);
   }
 };
 
@@ -211,8 +255,9 @@ public:
 // For simple node we try move forward as in sibling iterator.
 // If this iterator pointed to lastchild of some parent
 // then we need to move to this parent.
-template <typename Leaf, typename Branch>
-auto inorder_iterator_t<Leaf, Branch>::operator++() -> inorder_iterator_t & {
+template <typename Leaf, typename Branch, bool IsConst>
+auto inorder_iterator_base_t<Leaf, Branch, IsConst>::operator++() noexcept
+    -> inorder_iterator_base_t & {
   // Unvisited parent. Go to unvisited firstchild or to
   // visited itself if it is empty parent.
   if (val_.ptr_->is_branch() && !val_.visited_) {
@@ -248,8 +293,9 @@ auto inorder_iterator_t<Leaf, Branch>::operator++() -> inorder_iterator_t & {
 // Do the same as in ++ but in reverse. Interesting fact is that
 // after ++ and -- we can get different internal states.
 // This should be handled in equals method.
-template <typename Leaf, typename Branch>
-auto inorder_iterator_t<Leaf, Branch>::operator--() -> inorder_iterator_t & {
+template <typename Leaf, typename Branch, bool IsConst>
+auto inorder_iterator_base_t<Leaf, Branch, IsConst>::operator--() noexcept
+    -> inorder_iterator_base_t & {
   // Parent is visited. Next is either unvisited parent itself
   // if it is empty, or visited lastchild in other case.
   if (val_.ptr_->is_branch() && val_.visited_) {
@@ -281,14 +327,8 @@ auto inorder_iterator_t<Leaf, Branch>::operator--() -> inorder_iterator_t & {
 }
 
 template <typename Leaf, typename Branch>
-inline bool operator==(inorder_iterator_t<Leaf, Branch> lhs,
-                       inorder_iterator_t<Leaf, Branch> rhs) {
-  return lhs.equals(rhs);
-}
+using inorder_iterator_t = inorder_iterator_base_t<Leaf, Branch, false>;
 
 template <typename Leaf, typename Branch>
-inline bool operator!=(inorder_iterator_t<Leaf, Branch> lhs,
-                       inorder_iterator_t<Leaf, Branch> rhs) {
-  return !(lhs == rhs);
-}
+using const_inorder_iterator_t = inorder_iterator_base_t<Leaf, Branch, true>;
 } // namespace semitree

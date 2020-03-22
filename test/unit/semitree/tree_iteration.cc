@@ -63,12 +63,18 @@ BOOST_AUTO_TEST_CASE(inorder) {
   //        b2{6}  l2{3}
   //        l3{5}
   auto ino_ins_pt = tr.inorder_end();
-  tr.insert(ino_ins_pt, root);
-  tr.insert(--ino_ins_pt, l1);
-  tr.insert(ino_ins_pt, b1);
-  tr.insert(--ino_ins_pt, l2);
-  tr.insert(--ino_ins_pt, b2);
-  tr.insert(--ino_ins_pt, l3);
+  auto oldit = tr.insert(ino_ins_pt, root);
+  BOOST_TEST(oldit == ino_ins_pt);
+  oldit = tr.insert(--ino_ins_pt, l1);
+  BOOST_TEST(oldit == ino_ins_pt);
+  oldit = tr.insert(ino_ins_pt, b1);
+  BOOST_TEST(oldit == ino_ins_pt);
+  oldit = tr.insert(--ino_ins_pt, l2);
+  BOOST_TEST(oldit == ino_ins_pt);
+  oldit = tr.insert(--ino_ins_pt, b2);
+  BOOST_TEST(oldit == ino_ins_pt);
+  oldit = tr.insert(--ino_ins_pt, l3);
+  BOOST_TEST(oldit == ino_ins_pt);
 
   // Test children of each branch.
   auto sib_sum = [](int acc, const node &n) { return acc + n.get_data(); };
