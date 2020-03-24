@@ -236,6 +236,7 @@ int config::from_probf(probf_cit start, probf_cit fin) const {
 }
 
 int config::rand_from(int min, int max) const {
+  std::lock_guard lk{mt_mutex};
   uniform_int_distribution<int> dist(min, max);
   return dist(mt_source);
 }

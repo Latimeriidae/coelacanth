@@ -21,6 +21,7 @@
 
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <random>
 #include <stdexcept>
 #include <utility>
@@ -90,6 +91,7 @@ class config {
   bool quiet_;
   bool dump_;
   mutable std::mt19937_64 mt_source;
+  mutable std::mutex mt_mutex;
 
   // get helpers
 private:
@@ -100,6 +102,14 @@ private:
 public:
   config(int seed, bool quiet, bool dumps, ormap_cit start, ormap_cit fin)
       : cfg_(start, fin), quiet_(quiet), dump_(dumps), mt_source(seed) {}
+
+  config(const config &rhs)
+      : cfg_{rhs.cfg_}, quiet_{rhs.quiet_}, dump_{rhs.dump_},
+        mt_source{rhs.mt_source} {}
+  config(config &&rhs)
+      : cfg_{std::move(rhs.cfg_)}, quiet_{rhs.quiet_}, dump_{rhs.dump_},
+        mt_source{std::move(rhs.mt_source)} {}
+
   int get(int id) const;
   std::string gets(int id) const;
   std::pair<int, int> minmax(int id) const;
