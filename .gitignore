@@ -19,3 +19,7 @@
 #==============================================================================#
 # clangd index
 .clangd
+# Regular build
+build
+# clangd cache
+.cache
