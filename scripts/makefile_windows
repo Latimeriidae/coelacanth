@@ -1,0 +1,117 @@
+# This makefile only has helper targets, it is not meant to handle dependencies --- this is cmake's job
+SHELL := pwsh.exe
+.SHELLFLAGS := -Command
+
+BUILD_DIR ?= build
+BUILD_TYPE ?= Debug
+GENERATOR ?= vs
+INSTALL_PREFIX ?= $(BUILD_DIR)/install
+TOOLCHAIN ?= msvc
+
+PARALLEL ?= ON
+
+CORES := $(shell (Get-CimInstance -ClassName Win32_ComputerSystem).NumberOfLogicalProcessors)
+PARALLEL_OPTION := $(shell if("$(PARALLEL)" -eq "ON"){return "--parallel $(CORES)"})
+TOOLSET := $(shell \
+             if("$(TOOLCHAIN)" -eq "msvc"){return "v143"} \
+             elseif("$(TOOLCHAIN)" -eq "llvm"){return "ClangCL"} \
+             else{throw "Unknown toolchain!"} \
+            )
+GENERATOR_FULL := $(shell \
+                if("$(GENERATOR)" -eq "vs"){return "Visual Studio 17 2022"} \
+                elseif("$(GENERATOR)" -eq "ninja"){return "Ninja Multi-Config"} \
+                else{throw "Unknown generator!"} \
+               )
+TOOLSET_OPTION := $(shell \
+                if("$(GENERATOR)" -eq "vs"){return "-T `"$(TOOLSET)`""} \
+                elseif("$(GENERATOR)" -eq "ninja"){return ""} \
+                else{throw "Unknown generator!"} \
+               )
+CC := $(shell \
+        if("$(TOOLCHAIN)" -eq "llvm"){return "clang"} \
+        elseif("$(TOOLCHAIN)" -eq "msvc"){return "cl"} \
+        else{throw "Unknown toolchain!"} \
+       )
+CXX := $(shell \
+         if("$(TOOLCHAIN)" -eq "llvm"){return "clang++"} \
+         elseif("$(TOOLCHAIN)" -eq "msvc"){return "cl"} \
+         else{throw "Unknown toolchain!"} \
+        )
+CONFIG_ENV := $(shell \
+                if("$(GENERATOR)" -eq "vs"){return ""} \
+                elseif("$(GENERATOR)" -eq "ninja"){return "`$$env:CC=`"$(CC)`";`$$env:CXX=`"$(CXX)`"; "} \
+                else{throw "Unknown generator!"} \
+               )
+
+.PHONY: config
+config:
+	$(CONFIG_ENV) cmake <#\
+		#> -S . <#\
+		#> -B "$(BUILD_DIR)" <#\
+		#> -G "$(GENERATOR_FULL)" <#\
+		#> $(TOOLSET_OPTION) <#\
+		#> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <#\
+		#> -DPARALLEL_TESTING=$(PARALLEL) <#\
+		#>
+
+.PHONY: build
+build:
+	cmake --build "$(BUILD_DIR)" --config $(BUILD_TYPE) $(PARALLEL_OPTION)
+
+.PHONY: test
+test:
+	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) --verbose
+
+.PHONY: install
+install:
+	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX)
+
+###################### docker support ######################
+TARGET ?=
+COMMAND ?=
+DOCKER_IMAGE_TAG ?= rudenkornk/docker_cpp_windows:0.1.6
+DOCKER_IMAGE_TAG := $(DOCKER_IMAGE_TAG)
+DOCKER_CONTAINER_NAME ?= $(PROJECT_NAME)_container
+DOCKER_CONTAINER_NAME := $(DOCKER_CONTAINER_NAME)
+DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
+DOCKER_ISOLATION ?= hyperv # process or hyperv
+
+DOCKERD_UP := $(shell try{Set-Variable -Name ErrorActionPreference -Value stop -Scope Private; if((Get-Command docker) -and (Get-Process dockerd)){return $$true}}Catch{return $$false})
+
+DOCKER_CONTAINER_ID := $(shell if($$$(DOCKERD_UP)){return (docker container ls --quiet --all --filter name="^/$(DOCKER_CONTAINER_NAME)$$")})
+DOCKER_CONTAINER_STATE := $(shell if($$$(DOCKERD_UP)){return (docker container ls --format "{{.State}}" --all --filter name="^/$(DOCKER_CONTAINER_NAME)$$")})
+DOCKER_CONTAINER_RUN_STATUS := $(shell if("$(DOCKER_CONTAINER_STATE)" -ne "running"){return "$(DOCKER_CONTAINER)_not_running"})
+.PHONY: $(DOCKER_CONTAINER)_not_running
+$(DOCKER_CONTAINER): $(DOCKER_CONTAINER_RUN_STATUS)
+ifneq ($(DOCKER_CONTAINER_ID),)
+	docker container rename $(DOCKER_CONTAINER_NAME) $(DOCKER_CONTAINER_NAME)_$(DOCKER_CONTAINER_ID)
+endif
+	docker run --interactive --tty --detach <#\
+		#> --env BUILD_DIR="$(BUILD_DIR)" <#\
+		#> --env BUILD_TYPE="$(BUILD_TYPE)" <#\
+		#> --env GENERATOR="$(GENERATOR)" <#\
+		#> --env INSTALL_PREFIX="$(INSTALL_PREFIX)" <#\
+		#> --env TOOLCHAIN="$(TOOLCHAIN)" <#\
+		#> <#\
+		#> --env PARALLEL="$(PARALLEL)" <#\
+		#> <#\
+		#> --name $(DOCKER_CONTAINER_NAME) <#\
+		#> --user ContainerUser <#\
+		#> --mount type=bind,source="$$(Get-Location)",target=C:\repo <#\
+		#> --isolation=$(DOCKER_ISOLATION) <#\
+		#> --memory 8G <#\
+		#> $(DOCKER_IMAGE_TAG)
+	Start-Sleep -Seconds 1
+	New-Item -Force -Name "$@" -ItemType File
+
+.PHONY: $(DOCKER_CONTAINER_NAME)
+$(DOCKER_CONTAINER_NAME): $(DOCKER_CONTAINER)
+
+.PHONY: in_docker
+in_docker: $(DOCKER_CONTAINER)
+ifneq ($(COMMAND),)
+	docker exec $(DOCKER_CONTAINER_NAME) pwsh -Command "C:\vs_exec.bat $(COMMAND)"
+else
+	docker exec $(DOCKER_CONTAINER_NAME) pwsh -Command "C:\vs_exec.bat make $(TARGET)"
+endif
+
