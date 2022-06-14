@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #include "utils/semitree.h"
 
 class leaf;
