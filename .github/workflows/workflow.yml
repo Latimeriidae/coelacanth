@@ -1,0 +1,99 @@
+name: Test workflow
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  build_dir: build
+  install_dir: build/install
+
+jobs:
+  main:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019]
+        build_type: [Debug, Release]
+        toolchain: [gcc, llvm, msvc]
+        generator: [ninja, vs]
+        exclude:
+          - os: windows-2019
+            toolchain: gcc
+
+          - os: windows-2019
+            generator: ninja
+
+          - os: ubuntu-20.04
+            toolchain: msvc
+
+          - os: ubuntu-20.04
+            generator: vs
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Set environment
+      run: |
+        echo "BUILD_DIR=${{ env.build_dir }}" >> $GITHUB_ENV
+        echo "BUILD_TYPE=${{ matrix.build_type }}" >> $GITHUB_ENV
+        echo "GENERATOR=${{ matrix.generator }}" >> $GITHUB_ENV
+        echo "INSTALL_PREFIX=${{ env.install_dir }}" >> $GITHUB_ENV
+        echo "TOOLCHAIN=${{ matrix.toolchain }}" >> $GITHUB_ENV
+        echo "DOCKER_ISOLATION=process" >> $GITHUB_ENV
+        echo "PARALLEL=ON" >> $GITHUB_ENV
+    - name: Download and start container
+      # See https://github.com/rudenkornk/docker_cpp
+      # See https://github.com/rudenkornk/docker_cpp_windows
+      run: make coelacanth_container
+    - name: Configure
+      run: make in_docker TARGET=config
+    - name: Build
+      run: make in_docker TARGET=build
+    - name: Test
+      run: make in_docker TARGET=test
+    - name: Install
+      run: make in_docker TARGET=install
+
+  lint:
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      matrix:
+        fail-fast: [false]
+        tool: [clang-format, clang-tidy]
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - name: Set environment
+      run: |
+        echo "BUILD_DIR=${{ env.build_dir }}" >> $GITHUB_ENV
+        echo "CLANG_FORMAT_OUTPUT=patch" >> $GITHUB_ENV
+        echo "CLANG_TIDY_OUTPUT=patch" >> $GITHUB_ENV
+        echo "COMMIT=HEAD^" >> $GITHUB_ENV
+        echo "PARALLEL=ON" >> $GITHUB_ENV
+    - name: Download and start container
+      # See https://github.com/rudenkornk/docker_cpp
+      run: make coelacanth_container
+    - name: Configure
+      run: make in_docker TARGET=config
+    - name: Run linter
+      run: make in_docker TARGET=${{ matrix.tool }}
+    - name: Check
+      run: |
+        if [ -s patch ]; then
+          cat patch
+          exit 1
+        fi
