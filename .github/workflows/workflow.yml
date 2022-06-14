@@ -21,6 +21,9 @@ jobs:
         toolchain: [gcc, llvm, msvc]
         generator: [ninja, vs]
         exclude:
+          # Ok, Windows is a triky one
+          - os: windows-2019
+
           - os: windows-2019
             toolchain: gcc
 
