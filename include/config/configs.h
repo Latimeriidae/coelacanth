@@ -155,8 +155,8 @@ struct config_rng {
   const cfg::config &cf_;
   config_rng(const cfg::config &cf) : cf_(cf) {}
   result_type operator()() { return cf_.rand_positive(); }
-  static int min() { return 0; }
-  static int max() { return std::numeric_limits<int>::max(); }
+  static constexpr int min() { return 0; }
+  static constexpr int max() { return std::numeric_limits<int>::max(); }
 };
 
 } // namespace cfg
