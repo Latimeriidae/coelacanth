@@ -1,0 +1,132 @@
+# This makefile only has helper targets, it is not meant to handle dependencies --- this is cmake's job
+SHELL = /usr/bin/env bash
+
+BUILD_DIR ?= build
+BUILD_TYPE ?= Debug
+GENERATOR ?= ninja
+INSTALL_PREFIX ?= $(BUILD_DIR)/install
+TOOLCHAIN ?= gcc
+
+PARALLEL ?= ON
+
+CORES := $(shell nproc --all)
+PARALLEL_OPTION := $(shell [[ "$(PARALLEL)" == "ON" ]] && echo "--parallel $(CORES)")
+JPARALLEL_OPTION := $(shell [[ "$(PARALLEL)" == "ON" ]] && echo "-j$(CORES)")
+
+CC := $(shell \
+        if [[ "$(TOOLCHAIN)" == "gcc" ]]; then \
+          echo "gcc"; \
+        elif [[ "$(TOOLCHAIN)" == "llvm" ]]; then \
+          echo "clang"; \
+        else \
+          echo "unknown_toolchain"; \
+        fi \
+       )
+CXX := $(shell \
+        if [[ "$(TOOLCHAIN)" == "gcc" ]]; then \
+          echo "g++"; \
+        elif [[ "$(TOOLCHAIN)" == "llvm" ]]; then \
+          echo "clang++"; \
+        else \
+          echo "unknown_toolchain"; \
+        fi \
+       )
+GENERATOR_FULL := $(shell \
+                    if [[ "$(GENERATOR)" == "ninja" ]]; then \
+                      echo "Ninja Multi-Config"; \
+                    else \
+                      echo "unknown_generator"; \
+                    fi \
+                   )
+
+.PHONY: config
+config:
+	CC=$(CC) CXX=$(CXX) cmake \
+		 -S . \
+		 -B "$(BUILD_DIR)" \
+		 -G "$(GENERATOR_FULL)" \
+		 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+
+.PHONY: build
+build:
+	cmake --build "$(BUILD_DIR)" --config $(BUILD_TYPE) $(PARALLEL_OPTION)
+
+.PHONY: test
+test:
+	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) --verbose
+
+.PHONY: install
+install:
+	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX)
+
+###################### linters ######################
+COMMIT ?= origin/main
+CLANG_FORMAT_OUTPUT ?= in_place
+CLANG_TIDY_OUTPUT ?= patch
+
+CLANG_FORMAT_OUTPUT_ARG := $(shell [[ "$(CLANG_FORMAT_OUTPUT)" == "in_place" ]] && echo "-i" || echo "> $(CLANG_FORMAT_OUTPUT)")
+CLANG_TIDY_OUTPUT_ARG := $(shell [[ "$(CLANG_TIDY_OUTPUT)" == "in_place" ]] && echo "-fix" || echo "-export-fixes $(CLANG_TIDY_OUTPUT)")
+
+.PHONY: clang-format
+clang-format:
+	git diff -U0 --no-color --relative $(COMMIT) | clang-format-diff -p1 $(CLANG_FORMAT_OUTPUT_ARG)
+
+.PHONY: clang-tidy
+clang-tidy:
+	git diff -U0 --no-color --relative $(COMMIT) | clang-tidy-diff.py $(JPARALLEL_OPTION) -p1 -path $(BUILD_DIR) $(CLANG_TIDY_OUTPUT_ARG)
+
+
+###################### docker support ######################
+KEEP_CI_USER_SUDO ?= false
+KEEP_CI_USER_SUDO := $(KEEP_CI_USER_SUDO)
+TARGET ?=
+COMMAND ?=
+DOCKER_IMAGE_TAG ?= rudenkornk/docker_cpp:0.1.7
+DOCKER_IMAGE_TAG := $(DOCKER_IMAGE_TAG)
+DOCKER_CONTAINER_NAME ?= $(PROJECT_NAME)_container
+DOCKER_CONTAINER_NAME := $(DOCKER_CONTAINER_NAME)
+DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
+
+IF_DOCKERD_UP := command -v docker &> /dev/null && pidof dockerd &> /dev/null
+
+DOCKER_CONTAINER_ID := $(shell $(IF_DOCKERD_UP) && docker container ls --quiet --all --filter name=^/$(DOCKER_CONTAINER_NAME)$)
+DOCKER_CONTAINER_STATE := $(shell $(IF_DOCKERD_UP) && docker container ls --format {{.State}} --all --filter name=^/$(DOCKER_CONTAINER_NAME)$)
+DOCKER_CONTAINER_RUN_STATUS := $(shell [[ "$(DOCKER_CONTAINER_STATE)" != "running" ]] && echo "$(DOCKER_CONTAINER)_not_running")
+.PHONY: $(DOCKER_CONTAINER)_not_running
+$(DOCKER_CONTAINER): $(DOCKER_CONTAINER_RUN_STATUS)
+ifneq ($(DOCKER_CONTAINER_ID),)
+	docker container rename $(DOCKER_CONTAINER_NAME) $(DOCKER_CONTAINER_NAME)_$(DOCKER_CONTAINER_ID)
+endif
+	docker run --interactive --tty --detach \
+		--env BUILD_DIR="$(BUILD_DIR)" \
+		--env BUILD_TYPE="$(BUILD_TYPE)" \
+		--env GENERATOR="$(GENERATOR)" \
+		--env INSTALL_PREFIX="$(INSTALL_PREFIX)" \
+		--env TOOLCHAIN="$(TOOLCHAIN)" \
+		\
+		--env PARALLEL="$(PARALLEL)" \
+		--env COMMIT="$(COMMIT)" \
+		--env CLANG_FORMAT_OUTPUT="$(CLANG_FORMAT_OUTPUT)" \
+		--env CLANG_TIDY_OUTPUT="$(CLANG_TIDY_OUTPUT)" \
+		\
+		--env KEEP_CI_USER_SUDO="$(KEEP_CI_USER_SUDO)" \
+		--env CI_UID="$$(id --user)" --env CI_GID="$$(id --group)" \
+		--env "TERM=xterm-256color" \
+		--user ci_user \
+		--name $(DOCKER_CONTAINER_NAME) \
+		--mount type=bind,source="$$(pwd)",target=/home/repo \
+		$(DOCKER_IMAGE_TAG)
+	sleep 1
+	mkdir --parents $(BUILD_DIR) && touch $@
+
+.PHONY: $(DOCKER_CONTAINER_NAME)
+$(DOCKER_CONTAINER_NAME): $(DOCKER_CONTAINER)
+
+.PHONY: in_docker
+in_docker: $(DOCKER_CONTAINER)
+ifneq ($(COMMAND),)
+	docker exec $(DOCKER_CONTAINER_NAME) bash -c "$(COMMAND)"
+else
+	docker exec $(DOCKER_CONTAINER_NAME) bash -c "make $(TARGET)"
+endif
+
