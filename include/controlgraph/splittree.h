@@ -83,7 +83,7 @@ private:
   itpos_t add_block(itpos_t pos, vertex_t parent);
 
   template <typename T, typename... Args>
-  void turn_block(int nblock, Args &&... args);
+  void turn_block(int nblock, Args &&...args);
 
   bool have_parent(int bb, category_t pcat) const;
   void add_container(int bb_under_split);
@@ -101,7 +101,7 @@ private:
 
 // turns anything at nblock into T
 template <typename T, typename... Args>
-void split_tree_t::turn_block(int nblock, Args &&... args) {
+void split_tree_t::turn_block(int nblock, Args &&...args) {
   desc_of_[nblock] = create_vprop<T>(*this, std::forward<Args>(args)...);
   if constexpr (T::cat != category_t::BLOCK) {
     bbs_.erase(nblock);

@@ -84,7 +84,7 @@ struct vertexprop_t {
 };
 
 template <typename T, typename... Ts>
-vertexprop_t create_vprop(int id, Ts &&... args) {
+vertexprop_t create_vprop(int id, Ts &&...args) {
   return vertexprop_t{id, T::cat, T{std::forward<Ts>(args)...}};
 }
 

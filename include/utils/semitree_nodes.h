@@ -57,7 +57,7 @@ protected:
   using branch_t_ = semitree::branch_t<Leaf, Branch>;
 
   template <typename T, typename F, typename... Args>
-  static auto delegate_call(T &ths, F f, Args &&... args)
+  static auto delegate_call(T &ths, F f, Args &&...args)
       -> decltype(f(ths, std::forward<Args>(args)...)) {
     using nt = std::conditional_t<std::is_const_v<T>, const node_t, node_t>;
     using lt = std::conditional_t<std::is_const_v<T>, const Leaf, Leaf>;

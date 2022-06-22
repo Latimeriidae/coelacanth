@@ -159,7 +159,7 @@ using vcit = typename vct::iterator;
 std::ostream &operator<<(std::ostream &, const vertexprop_t &);
 
 template <typename T, typename... Ts>
-shared_vp_t create_vprop(const split_tree_t &p, Ts &&... args) {
+shared_vp_t create_vprop(const split_tree_t &p, Ts &&...args) {
   return std::make_shared<const vertexprop_t>(p, T::cat,
                                               T(std::forward<Ts>(args)...));
 }

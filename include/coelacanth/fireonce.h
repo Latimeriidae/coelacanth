@@ -44,7 +44,7 @@ public:
   // invoke if R not void
   template <typename R2 = R,
             std::enable_if_t<!std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args &&... args) && {
+  R2 operator()(Args &&...args) && {
     R2 ret = invoke(ptr.get(), std::forward<Args>(args)...);
     clear();
     return std::move(ret);
@@ -53,7 +53,7 @@ public:
   // invoke if R is void
   template <typename R2 = R,
             std::enable_if_t<std::is_same<R2, void>{}, int> = 0>
-  R2 operator()(Args &&... args) && {
+  R2 operator()(Args &&...args) && {
     invoke(ptr.get(), std::forward<Args>(args)...);
     clear();
   }

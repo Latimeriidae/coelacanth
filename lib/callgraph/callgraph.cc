@@ -114,14 +114,14 @@ struct bfs_edge_visitor : public boost::default_bfs_visitor {
 
 template <>
 nbr_iterator_t<outedge_iter_t>::value_type
-    nbr_iterator_t<outedge_iter_t>::operator*() const {
+nbr_iterator_t<outedge_iter_t>::operator*() const {
   auto v = dest_from(cgp_, *ei_);
   return v;
 }
 
 template <>
 nbr_iterator_t<inedge_iter_t>::value_type
-    nbr_iterator_t<inedge_iter_t>::operator*() const {
+nbr_iterator_t<inedge_iter_t>::operator*() const {
   auto v = src_from(cgp_, *ei_);
   return v;
 }
