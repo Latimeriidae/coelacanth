@@ -103,11 +103,11 @@ public:
 
 template <>
 nbr_iterator_t<outedge_iter_t>::value_type
-    nbr_iterator_t<outedge_iter_t>::operator*() const;
+nbr_iterator_t<outedge_iter_t>::operator*() const;
 
 template <>
 nbr_iterator_t<inedge_iter_t>::value_type
-    nbr_iterator_t<inedge_iter_t>::operator*() const;
+nbr_iterator_t<inedge_iter_t>::operator*() const;
 
 using callee_iterator_t = nbr_iterator_t<outedge_iter_t>;
 using caller_iterator_t = nbr_iterator_t<inedge_iter_t>;

@@ -121,12 +121,12 @@ void controlgraph_dump(std::shared_ptr<cn::controlgraph_t>, std::ostream &os);
 // for example:
 // create_task(callgraph_create, default_config);
 // will return pair of task and future for std::shared_ptr<cg::callgraph_t>
-template <typename F, typename... Args> auto create_task(F f, Args &&... args) {
+template <typename F, typename... Args> auto create_task(F f, Args &&...args) {
   std::packaged_task<std::remove_pointer_t<F>> tsk{f};
   auto fut = tsk.get_future();
   task_t t{[ct = std::move(tsk),
             args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
-    std::apply([ct = std::move(ct)](auto &&... args) mutable { ct(args...); },
+    std::apply([ct = std::move(ct)](auto &&...args) mutable { ct(args...); },
                std::move(args));
     return 0;
   }};
