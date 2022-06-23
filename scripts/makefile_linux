@@ -135,8 +135,8 @@ container: $(DOCKER_CONTAINER)
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
 ifneq ($(COMMAND),)
-	docker exec $(DOCKER_CONTAINER_NAME) bash -c "$(COMMAND)"
+	docker exec $(DOCKER_CONTAINER_NAME) bash -c '$(COMMAND)'
 else
-	docker exec $(DOCKER_CONTAINER_NAME) bash -c "make $(TARGET)"
+	docker exec $(DOCKER_CONTAINER_NAME) bash -c 'make $(TARGET)'
 endif
 
