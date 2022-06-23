@@ -6,7 +6,7 @@ coelacanth random code generator
 ## Prerequisites
 ### Option 1: Use docker container interactively:
 ```bash
-make coelacanth_container
+make container
 docker attach coelacanth_container
 ```
 ### Option 2: Send commands to docker container:

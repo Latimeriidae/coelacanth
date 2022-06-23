@@ -55,7 +55,7 @@ jobs:
     - name: Download and start container
       # See https://github.com/rudenkornk/docker_cpp
       # See https://github.com/rudenkornk/docker_cpp_windows
-      run: make coelacanth_container
+      run: make container
     - name: Configure
       run: make in_docker TARGET=config
     - name: Build
@@ -89,7 +89,7 @@ jobs:
         echo "PARALLEL=ON" >> $GITHUB_ENV
     - name: Download and start container
       # See https://github.com/rudenkornk/docker_cpp
-      run: make coelacanth_container
+      run: make container
     - name: Configure
       run: make in_docker TARGET=config
     - name: Run linter
