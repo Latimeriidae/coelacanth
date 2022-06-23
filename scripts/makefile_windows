@@ -104,7 +104,7 @@ endif
 		#> --env VERBOSE="$(VERBOSE)" <#\
 		#> <#\
 		#> --name $(DOCKER_CONTAINER_NAME) <#\
-		#> --user ContainerUser <#\
+		#> --user ContainerAdministrator <#\
 		#> --mount type=bind,source="$$(Get-Location)",target=C:\repo <#\
 		#> --isolation=$(DOCKER_ISOLATION) <#\
 		#> --memory 8G <#\
