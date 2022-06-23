@@ -78,12 +78,11 @@ install:
 ###################### docker support ######################
 TARGET ?=
 COMMAND ?=
-DOCKER_IMAGE_TAG ?= rudenkornk/docker_cpp_windows:0.1.7
-DOCKER_IMAGE_TAG := $(DOCKER_IMAGE_TAG)
-DOCKER_CONTAINER_NAME ?= $(PROJECT_NAME)_container
-DOCKER_CONTAINER_NAME := $(DOCKER_CONTAINER_NAME)
-DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 DOCKER_ISOLATION ?= hyperv # process or hyperv
+
+DOCKER_IMAGE_TAG := rudenkornk/docker_cpp_windows:0.1.7
+DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
+DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 
 DOCKERD_UP != try{Set-Variable -Name ErrorActionPreference -Value stop -Scope Private; if((Get-Command docker) -and (Get-Process dockerd)){return $$true}}Catch{return $$false}
 
