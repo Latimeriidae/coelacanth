@@ -2,6 +2,7 @@
 SHELL = /usr/bin/env bash
 
 BUILD_DIR ?= build
+BUILD_TARGET ?= all
 BUILD_TYPE ?= Debug
 GENERATOR ?= ninja
 INSTALL_PREFIX ?= $(BUILD_DIR)/install
@@ -54,6 +55,7 @@ build:
 	cmake \
 		--build "$(BUILD_DIR)" \
 		--config $(BUILD_TYPE) \
+		--target $(BUILD_TARGET) \
 		$(PARALLEL_OPTION) \
 		$(VERBOSE_OPTION) \
 
@@ -107,6 +109,7 @@ endif
 	docker run --interactive --tty --detach \
 		--env BUILD_DIR="$(BUILD_DIR)" \
 		--env BUILD_TYPE="$(BUILD_TYPE)" \
+		--env BUILD_TARGET="$(BUILD_TARGET)" \
 		--env GENERATOR="$(GENERATOR)" \
 		--env INSTALL_PREFIX="$(INSTALL_PREFIX)" \
 		--env TOOLCHAIN="$(TOOLCHAIN)" \
