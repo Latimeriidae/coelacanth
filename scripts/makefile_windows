@@ -114,8 +114,8 @@ endif
 		#> $(DOCKER_IMAGE_TAG)
 	New-Item -Force -Name "$@" -ItemType File
 
-.PHONY: $(DOCKER_CONTAINER_NAME)
-$(DOCKER_CONTAINER_NAME): $(DOCKER_CONTAINER)
+.PHONY: container
+container: $(DOCKER_CONTAINER)
 
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
