@@ -8,6 +8,7 @@ INSTALL_PREFIX ?= $(BUILD_DIR)/install
 TOOLCHAIN ?= gcc
 
 PARALLEL ?= ON
+VERBOSE ?= ON
 
 CORES != nproc --all
 PARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "--parallel $(CORES)"
@@ -38,6 +39,7 @@ GENERATOR_FULL := $(shell \
                       echo "unknown_generator"; \
                     fi \
                    )
+VERBOSE_OPTION != [[ "$(VERBOSE)" == "ON" ]] && echo "--verbose"
 
 .PHONY: config
 config:
@@ -49,15 +51,20 @@ config:
 
 .PHONY: build
 build:
-	cmake --build "$(BUILD_DIR)" --config $(BUILD_TYPE) $(PARALLEL_OPTION)
+	cmake \
+		--build "$(BUILD_DIR)" \
+		--config $(BUILD_TYPE) \
+		$(PARALLEL_OPTION) \
+		$(VERBOSE_OPTION) \
 
 .PHONY: test
 test:
-	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) --verbose
+	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) $(VERBOSE_OPTION)
 
 .PHONY: install
 install:
-	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX)
+	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX) $(VERBOSE_OPTION)
+
 
 ###################### linters ######################
 COMMIT ?= origin/main
@@ -105,6 +112,8 @@ endif
 		--env TOOLCHAIN="$(TOOLCHAIN)" \
 		\
 		--env PARALLEL="$(PARALLEL)" \
+		--env VERBOSE="$(VERBOSE)" \
+		\
 		--env COMMIT="$(COMMIT)" \
 		--env CLANG_FORMAT_OUTPUT="$(CLANG_FORMAT_OUTPUT)" \
 		--env CLANG_TIDY_OUTPUT="$(CLANG_TIDY_OUTPUT)" \
