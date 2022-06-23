@@ -88,11 +88,13 @@ clang-tidy:
 ###################### docker support ######################
 TARGET ?=
 COMMAND ?=
+DOCKER_ADMIN ?= false
 DOCKER_KEEP_CI_USER_SUDO ?= false
 
 DOCKER_IMAGE_TAG := rudenkornk/docker_cpp:0.1.7
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
+DOCKER_CONTAINER_USER != [[ "$(DOCKER_ADMIN)" != "true" ]] && echo "ci_user" || echo "root"
 
 IF_DOCKERD_UP := command -v docker &> /dev/null && pidof dockerd &> /dev/null
 
@@ -122,7 +124,7 @@ endif
 		--env KEEP_CI_USER_SUDO="$(DOCKER_KEEP_CI_USER_SUDO)" \
 		--env CI_UID="$$(id --user)" --env CI_GID="$$(id --group)" \
 		--env "TERM=xterm-256color" \
-		--user ci_user \
+		--user $(DOCKER_CONTAINER_USER) \
 		--name $(DOCKER_CONTAINER_NAME) \
 		--mount type=bind,source="$$(pwd)",target=/home/repo \
 		$(DOCKER_IMAGE_TAG)
@@ -135,8 +137,8 @@ container: $(DOCKER_CONTAINER)
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
 ifneq ($(COMMAND),)
-	docker exec $(DOCKER_CONTAINER_NAME) bash -c '$(COMMAND)'
+	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) bash -c '$(COMMAND)'
 else
-	docker exec $(DOCKER_CONTAINER_NAME) bash -c 'make $(TARGET)'
+	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) bash -c 'make $(TARGET)'
 endif
 
