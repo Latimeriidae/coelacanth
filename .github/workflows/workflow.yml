@@ -68,8 +68,8 @@ jobs:
   lint:
     if: ${{ github.event_name == 'pull_request' }}
     strategy:
+      fail-fast: false
       matrix:
-        fail-fast: [false]
         tool: [clang-format, clang-tidy]
     runs-on: ubuntu-20.04
     defaults:
