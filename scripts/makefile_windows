@@ -109,7 +109,6 @@ endif
 		#> --isolation=$(DOCKER_ISOLATION) <#\
 		#> --memory 8G <#\
 		#> $(DOCKER_IMAGE_TAG)
-	Start-Sleep -Seconds 1
 	New-Item -Force -Name "$@" -ItemType File
 
 .PHONY: $(DOCKER_CONTAINER_NAME)
