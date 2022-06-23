@@ -5,7 +5,6 @@ SHELL := pwsh.exe
 BUILD_DIR ?= build
 BUILD_TARGET ?= ALL_BUILD
 BUILD_TYPE ?= Debug
-GENERATOR ?= vs
 INSTALL_PREFIX ?= $(BUILD_DIR)/install
 TOOLCHAIN ?= msvc
 
@@ -14,47 +13,25 @@ VERBOSE ?= ON
 
 CORES != (Get-CimInstance -ClassName Win32_ComputerSystem).NumberOfLogicalProcessors
 PARALLEL_OPTION != if("$(PARALLEL)" -eq "ON"){return "--parallel $(CORES)"}
-TOOLSET := $(shell \
-             if("$(TOOLCHAIN)" -eq "msvc"){return "v143"} \
-             elseif("$(TOOLCHAIN)" -eq "llvm"){return "ClangCL"} \
-             else{throw "Unknown toolchain!"} \
-            )
-GENERATOR_FULL := $(shell \
-                if("$(GENERATOR)" -eq "vs"){return "Visual Studio 17 2022"} \
-                elseif("$(GENERATOR)" -eq "ninja"){return "Ninja Multi-Config"} \
-                else{throw "Unknown generator!"} \
-               )
-TOOLSET_OPTION := $(shell \
-                if("$(GENERATOR)" -eq "vs"){return "-T `"$(TOOLSET)`""} \
-                elseif("$(GENERATOR)" -eq "ninja"){return ""} \
-                else{throw "Unknown generator!"} \
-               )
-CC := $(shell \
-        if("$(TOOLCHAIN)" -eq "llvm"){return "clang"} \
-        elseif("$(TOOLCHAIN)" -eq "msvc"){return "cl"} \
-        else{throw "Unknown toolchain!"} \
-       )
-CXX := $(shell \
-         if("$(TOOLCHAIN)" -eq "llvm"){return "clang++"} \
-         elseif("$(TOOLCHAIN)" -eq "msvc"){return "cl"} \
-         else{throw "Unknown toolchain!"} \
-        )
-CONFIG_ENV := $(shell \
-                if("$(GENERATOR)" -eq "vs"){return ""} \
-                elseif("$(GENERATOR)" -eq "ninja"){return "`$$env:CC=`"$(CC)`";`$$env:CXX=`"$(CXX)`"; "} \
-                else{throw "Unknown generator!"} \
-               )
 VERBOSE_OPTION != if("$(VERBOSE)" -eq "ON"){return "--verbose"}
+
+.PHONY: conan
+conan:
+	conan install <#\
+		#> --profile:host vs_$(TOOLCHAIN).jinja <#\
+		#> --profile:build vs_$(TOOLCHAIN).jinja <#\
+		#> --settings build_type=$(BUILD_TYPE) <#\
+		#> --build missing <#\
+		#> --install-folder $(BUILD_DIR) <#\
+		#> scripts/conanfile.py <#\
+		#>
 
 .PHONY: config
 config:
-	$(CONFIG_ENV) cmake <#\
+	cmake <#\
 		#> -S . <#\
 		#> -B "$(BUILD_DIR)" <#\
-		#> -G "$(GENERATOR_FULL)" <#\
-		#> $(TOOLSET_OPTION) <#\
-		#> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <#\
-		#> -DPARALLEL_TESTING=$(PARALLEL) <#\
+		#> -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" <#\
 		#>
 
 .PHONY: build
@@ -78,10 +55,11 @@ install:
 ###################### docker support ######################
 TARGET ?=
 COMMAND ?=
+DOCKER_CONAN_CACHE ?= $$HOME/.conan/data
 DOCKER_ISOLATION ?= hyperv # process or hyperv
 DOCKER_ADMIN ?= false
 
-DOCKER_IMAGE_TAG := rudenkornk/docker_cpp_windows:0.1.7
+DOCKER_IMAGE_TAG := rudenkornk/docker_cpp_windows:0.2.2
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 DOCKER_CONTAINER_USER != if("$(DOCKER_ADMIN)".ToLower() -ne "true"){return "ContainerUser"}else{return "ContainerAdministrator"}
@@ -96,11 +74,11 @@ $(DOCKER_CONTAINER): $(DOCKER_CONTAINER_RUN_STATUS)
 ifneq ($(DOCKER_CONTAINER_ID),)
 	docker container rename $(DOCKER_CONTAINER_NAME) $(DOCKER_CONTAINER_NAME)_$(DOCKER_CONTAINER_ID)
 endif
+	New-Item -Force -ItemType "directory" -Path "$(DOCKER_CONAN_CACHE)"
 	docker run --interactive --tty --detach <#\
 		#> --env BUILD_DIR="$(BUILD_DIR)" <#\
 		#> --env BUILD_TARGET="$(BUILD_TARGET)" <#\
 		#> --env BUILD_TYPE="$(BUILD_TYPE)" <#\
-		#> --env GENERATOR="$(GENERATOR)" <#\
 		#> --env INSTALL_PREFIX="$(INSTALL_PREFIX)" <#\
 		#> --env TOOLCHAIN="$(TOOLCHAIN)" <#\
 		#> <#\
@@ -110,6 +88,7 @@ endif
 		#> --name $(DOCKER_CONTAINER_NAME) <#\
 		#> --user $(DOCKER_CONTAINER_USER) <#\
 		#> --mount type=bind,source="$$(Get-Location)",target=C:\repo <#\
+		#> --mount type=bind,source="$$(Resolve-Path $(DOCKER_CONAN_CACHE))",target=C:\Users\$(DOCKER_CONTAINER_USER)\.conan\data <#\
 		#> --isolation=$(DOCKER_ISOLATION) <#\
 		#> --memory 8G <#\
 		#> $(DOCKER_IMAGE_TAG)

@@ -8,33 +8,22 @@ on:
     branches:
       - master
 
-env:
-  build_dir: build
-  install_dir: build/install
-
 jobs:
   main:
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-20.04, windows-2022]
         build_type: [Debug, Release]
         toolchain: [gcc, llvm, msvc]
-        generator: [ninja, vs]
         exclude:
-          # Ok, Windows is a triky one
-          - os: windows-2019
-
-          - os: windows-2019
+          - os: windows-2022
             toolchain: gcc
 
-          - os: windows-2019
-            generator: ninja
+          - os: windows-2022
+            toolchain: llvm
 
           - os: ubuntu-20.04
             toolchain: msvc
-
-          - os: ubuntu-20.04
-            generator: vs
 
     runs-on: ${{ matrix.os }}
     defaults:
@@ -45,17 +34,33 @@ jobs:
       uses: actions/checkout@v3
     - name: Set environment
       run: |
-        echo "BUILD_DIR=${{ env.build_dir }}" >> $GITHUB_ENV
+        echo "BUILD_DIR=build" >> $GITHUB_ENV
         echo "BUILD_TYPE=${{ matrix.build_type }}" >> $GITHUB_ENV
-        echo "GENERATOR=${{ matrix.generator }}" >> $GITHUB_ENV
-        echo "INSTALL_PREFIX=${{ env.install_dir }}" >> $GITHUB_ENV
+        echo "INSTALL_PREFIX=build/install" >> $GITHUB_ENV
         echo "TOOLCHAIN=${{ matrix.toolchain }}" >> $GITHUB_ENV
-        echo "DOCKER_ISOLATION=process" >> $GITHUB_ENV
+
         echo "PARALLEL=ON" >> $GITHUB_ENV
+        echo "VERBOSE=ON" >> $GITHUB_ENV
+
+        echo "DOCKER_ISOLATION=process" >> $GITHUB_ENV
+        echo "DOCKER_CONAN_CACHE=build/conan/data" >> $GITHUB_ENV
+    - name: Load cached dependecies
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.DOCKER_CONAN_CACHE }}
+        key: conan_${{ runner.os }}_${{ env.BUILD_TYPE }}_${{ env.TOOLCHAIN }}_${{ hashFiles('scripts/conanfile.py') }}
+        restore-keys: conan_${{ runner.os }}_${{ env.BUILD_TYPE }}_${{ env.TOOLCHAIN }}
     - name: Download and start container
       # See https://github.com/rudenkornk/docker_cpp
       # See https://github.com/rudenkornk/docker_cpp_windows
       run: make container
+    - name: Cache permissions workaround
+      run: |
+        if [[ '${{ matrix.os }}' =~ 'windows' ]]; then
+          make in_docker DOCKER_ADMIN=true COMMAND="icacls $DOCKER_CONAN_CACHE /q /c /t /grant ContainerUser:F"
+        fi
+    - name: Install dependecies
+      run: make in_docker TARGET=conan
     - name: Configure
       run: make in_docker TARGET=config
     - name: Build
@@ -82,16 +87,32 @@ jobs:
         fetch-depth: 2
     - name: Set environment
       run: |
-        echo "BUILD_DIR=${{ env.build_dir }}" >> $GITHUB_ENV
+        echo "BUILD_DIR=build" >> $GITHUB_ENV
+        echo "BUILD_TYPE=Release" >> $GITHUB_ENV
+        echo "TOOLCHAIN=llvm" >> $GITHUB_ENV
+
+        echo "PARALLEL=ON" >> $GITHUB_ENV
+        echo "VERBOSE=ON" >> $GITHUB_ENV
+
         echo "CLANG_FORMAT_OUTPUT=patch" >> $GITHUB_ENV
         echo "CLANG_TIDY_OUTPUT=patch" >> $GITHUB_ENV
         echo "COMMIT=HEAD^" >> $GITHUB_ENV
-        echo "PARALLEL=ON" >> $GITHUB_ENV
+
+        echo "DOCKER_ISOLATION=process" >> $GITHUB_ENV
+        echo "DOCKER_CONAN_CACHE=build/conan/data" >> $GITHUB_ENV
+    - name: Load cached dependecies
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.DOCKER_CONAN_CACHE }}
+        key: conan_${{ runner.os }}_${{ env.BUILD_TYPE }}_${{ env.TOOLCHAIN }}_${{ hashFiles('scripts/conanfile.py') }}
+        restore-keys: conan_${{ runner.os }}_${{ env.BUILD_TYPE }}_${{ env.TOOLCHAIN }}
     - name: Download and start container
       # See https://github.com/rudenkornk/docker_cpp
       run: make container
+    - name: Install dependecies
+      run: make in_docker TARGET=conan
     - name: Configure
-      run: make in_docker TARGET=config
+      run: make in_docker TARGET=compile_commands
     - name: Run linter
       run: make in_docker TARGET=${{ matrix.tool }}
     - name: Check
