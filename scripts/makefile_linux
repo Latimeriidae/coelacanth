@@ -4,7 +4,7 @@ SHELL = /usr/bin/env bash
 BUILD_DIR ?= build
 BUILD_TARGET ?= all
 BUILD_TYPE ?= Debug
-GENERATOR ?= ninja
+GENERATOR ?= Ninja Multi-Config
 INSTALL_PREFIX ?= $(BUILD_DIR)/install
 TOOLCHAIN ?= gcc
 
@@ -14,41 +14,37 @@ VERBOSE ?= ON
 CORES != nproc --all
 PARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "--parallel $(CORES)"
 JPARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "-j$(CORES)"
-
-CC := $(shell \
-        if [[ "$(TOOLCHAIN)" == "gcc" ]]; then \
-          echo "gcc"; \
-        elif [[ "$(TOOLCHAIN)" == "llvm" ]]; then \
-          echo "clang"; \
-        else \
-          echo "unknown_toolchain"; \
-        fi \
-       )
-CXX := $(shell \
-        if [[ "$(TOOLCHAIN)" == "gcc" ]]; then \
-          echo "g++"; \
-        elif [[ "$(TOOLCHAIN)" == "llvm" ]]; then \
-          echo "clang++"; \
-        else \
-          echo "unknown_toolchain"; \
-        fi \
-       )
-GENERATOR_FULL := $(shell \
-                    if [[ "$(GENERATOR)" == "ninja" ]]; then \
-                      echo "Ninja Multi-Config"; \
-                    else \
-                      echo "unknown_generator"; \
-                    fi \
-                   )
 VERBOSE_OPTION != [[ "$(VERBOSE)" == "ON" ]] && echo "--verbose"
+
+.PHONY: conan
+conan:
+	conan install \
+		--profile:host $(TOOLCHAIN).jinja \
+		--profile:build $(TOOLCHAIN).jinja \
+		--settings build_type=$(BUILD_TYPE) \
+		--build missing \
+		--install-folder $(BUILD_DIR) \
+		scripts/conanfile.py \
 
 .PHONY: config
 config:
-	CC=$(CC) CXX=$(CXX) cmake \
+	cmake \
 		 -S . \
 		 -B "$(BUILD_DIR)" \
-		 -G "$(GENERATOR_FULL)" \
+		 -G "$(GENERATOR)" \
+		 -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" \
+
+.PHONY: compile_commands
+compile_commands:
+	cmake \
+		 -S . \
+		 -B "$(BUILD_DIR)/compile_commands" \
+		 -G "$(GENERATOR)" \
+		 -DCMAKE_CONFIGURATION_TYPES=$(BUILD_TYPE) \
 		 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		 -DCMAKE_TOOLCHAIN_FILE="$(BUILD_DIR)/conan_toolchain.cmake" \
+	
+	ln --symbolic "$(BUILD_DIR)/compile_commands/compile_commands.json" compile_commands.json
 
 .PHONY: build
 build:
@@ -82,16 +78,17 @@ clang-format:
 
 .PHONY: clang-tidy
 clang-tidy:
-	git diff -U0 --no-color --relative $(COMMIT) | clang-tidy-diff.py $(JPARALLEL_OPTION) -p1 -path $(BUILD_DIR) $(CLANG_TIDY_OUTPUT_ARG)
+	git diff -U0 --no-color --relative $(COMMIT) | clang-tidy-diff.py $(JPARALLEL_OPTION) -p1 -path $(BUILD_DIR)/compile_commands $(CLANG_TIDY_OUTPUT_ARG)
 
 
 ###################### docker support ######################
 TARGET ?=
 COMMAND ?=
 DOCKER_ADMIN ?= false
+DOCKER_CONAN_CACHE ?= $$HOME/.conan/data
 DOCKER_KEEP_CI_USER_SUDO ?= false
 
-DOCKER_IMAGE_TAG := rudenkornk/docker_cpp:0.1.7
+DOCKER_IMAGE_TAG := rudenkornk/docker_cpp:0.2.2
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 DOCKER_CONTAINER_USER != [[ "$(DOCKER_ADMIN)" != "true" ]] && echo "ci_user" || echo "root"
@@ -106,6 +103,7 @@ $(DOCKER_CONTAINER): $(DOCKER_CONTAINER_RUN_STATUS)
 ifneq ($(DOCKER_CONTAINER_ID),)
 	docker container rename $(DOCKER_CONTAINER_NAME) $(DOCKER_CONTAINER_NAME)_$(DOCKER_CONTAINER_ID)
 endif
+	mkdir --parents "$(DOCKER_CONAN_CACHE)"
 	docker run --interactive --tty --detach \
 		--env BUILD_DIR="$(BUILD_DIR)" \
 		--env BUILD_TYPE="$(BUILD_TYPE)" \
@@ -127,6 +125,7 @@ endif
 		--user $(DOCKER_CONTAINER_USER) \
 		--name $(DOCKER_CONTAINER_NAME) \
 		--mount type=bind,source="$$(pwd)",target=/home/repo \
+		--mount type=bind,source="$$(realpath $(DOCKER_CONAN_CACHE))",target=/home/$(DOCKER_CONTAINER_USER)/.conan/data \
 		$(DOCKER_IMAGE_TAG)
 	sleep 1
 	mkdir --parents $(BUILD_DIR) && touch $@
