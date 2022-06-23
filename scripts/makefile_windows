@@ -9,6 +9,7 @@ INSTALL_PREFIX ?= $(BUILD_DIR)/install
 TOOLCHAIN ?= msvc
 
 PARALLEL ?= ON
+VERBOSE ?= ON
 
 CORES != (Get-CimInstance -ClassName Win32_ComputerSystem).NumberOfLogicalProcessors
 PARALLEL_OPTION != if("$(PARALLEL)" -eq "ON"){return "--parallel $(CORES)"}
@@ -42,6 +43,7 @@ CONFIG_ENV := $(shell \
                 elseif("$(GENERATOR)" -eq "ninja"){return "`$$env:CC=`"$(CC)`";`$$env:CXX=`"$(CXX)`"; "} \
                 else{throw "Unknown generator!"} \
                )
+VERBOSE_OPTION != if("$(VERBOSE)" -eq "ON"){return "--verbose"}
 
 .PHONY: config
 config:
@@ -56,15 +58,20 @@ config:
 
 .PHONY: build
 build:
-	cmake --build "$(BUILD_DIR)" --config $(BUILD_TYPE) $(PARALLEL_OPTION)
+	cmake <#\
+		#> --build "$(BUILD_DIR)" <#\
+		#> --config $(BUILD_TYPE) <#\
+		#> $(PARALLEL_OPTION) <#\
+		#> $(VERBOSE_OPTION) <#\
+		#>
 
 .PHONY: test
 test:
-	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) --verbose
+	ctest --build-config $(BUILD_TYPE) --test-dir "$(BUILD_DIR)" $(PARALLEL_OPTION) $(VERBOSE_OPTION)
 
 .PHONY: install
 install:
-	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX)
+	cmake --install "$(BUILD_DIR)" --config $(BUILD_TYPE) --prefix $(INSTALL_PREFIX) $(VERBOSE_OPTION)
 
 ###################### docker support ######################
 TARGET ?=
@@ -94,6 +101,7 @@ endif
 		#> --env TOOLCHAIN="$(TOOLCHAIN)" <#\
 		#> <#\
 		#> --env PARALLEL="$(PARALLEL)" <#\
+		#> --env VERBOSE="$(VERBOSE)" <#\
 		#> <#\
 		#> --name $(DOCKER_CONTAINER_NAME) <#\
 		#> --user ContainerUser <#\
