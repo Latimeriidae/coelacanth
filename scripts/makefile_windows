@@ -79,10 +79,12 @@ install:
 TARGET ?=
 COMMAND ?=
 DOCKER_ISOLATION ?= hyperv # process or hyperv
+DOCKER_ADMIN ?= false
 
 DOCKER_IMAGE_TAG := rudenkornk/docker_cpp_windows:0.1.7
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
+DOCKER_CONTAINER_USER != if("$(DOCKER_ADMIN)".ToLower() -ne "true"){return "ContainerUser"}else{return "ContainerAdministrator"}
 
 DOCKERD_UP != try{Set-Variable -Name ErrorActionPreference -Value stop -Scope Private; if((Get-Command docker) -and (Get-Process dockerd)){return $$true}}Catch{return $$false}
 
@@ -106,7 +108,7 @@ endif
 		#> --env VERBOSE="$(VERBOSE)" <#\
 		#> <#\
 		#> --name $(DOCKER_CONTAINER_NAME) <#\
-		#> --user ContainerAdministrator <#\
+		#> --user $(DOCKER_CONTAINER_USER) <#\
 		#> --mount type=bind,source="$$(Get-Location)",target=C:\repo <#\
 		#> --isolation=$(DOCKER_ISOLATION) <#\
 		#> --memory 8G <#\
@@ -119,8 +121,8 @@ container: $(DOCKER_CONTAINER)
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
 ifneq ($(COMMAND),)
-	docker exec $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat $(COMMAND)'
+	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat $(COMMAND)'
 else
-	docker exec $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat make $(TARGET)'
+	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat make $(TARGET)'
 endif
 
