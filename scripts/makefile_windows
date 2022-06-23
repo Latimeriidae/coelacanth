@@ -3,6 +3,7 @@ SHELL := pwsh.exe
 .SHELLFLAGS := -Command
 
 BUILD_DIR ?= build
+BUILD_TARGET ?= ALL_BUILD
 BUILD_TYPE ?= Debug
 GENERATOR ?= vs
 INSTALL_PREFIX ?= $(BUILD_DIR)/install
@@ -61,6 +62,7 @@ build:
 	cmake <#\
 		#> --build "$(BUILD_DIR)" <#\
 		#> --config $(BUILD_TYPE) <#\
+		#> --target "$(BUILD_TARGET)" <#\
 		#> $(PARALLEL_OPTION) <#\
 		#> $(VERBOSE_OPTION) <#\
 		#>
@@ -95,6 +97,7 @@ ifneq ($(DOCKER_CONTAINER_ID),)
 endif
 	docker run --interactive --tty --detach <#\
 		#> --env BUILD_DIR="$(BUILD_DIR)" <#\
+		#> --env BUILD_TARGET="$(BUILD_TARGET)" <#\
 		#> --env BUILD_TYPE="$(BUILD_TYPE)" <#\
 		#> --env GENERATOR="$(GENERATOR)" <#\
 		#> --env INSTALL_PREFIX="$(INSTALL_PREFIX)" <#\
