@@ -117,17 +117,16 @@ public:
   }
 };
 
-class indent_ostream_t : public std::ostream {
+class indent_ostream_t : private indent_ostreambuf_t, public std::ostream {
+  using buf_t = indent_ostreambuf_t;
   using base = std::ostream;
 
   // ios_base::xalloc index for this type.
   static const int x_stream_id_;
 
-  indent_ostreambuf_t buf_;
-
 public:
   indent_ostream_t(std::ostream &os, int level_spaces)
-      : base{&buf_}, buf_{*os.rdbuf(), level_spaces} {
+      : buf_t{*os.rdbuf(), level_spaces}, base{static_cast<buf_t *>(this)} {
     pword(x_stream_id_) = static_cast<std::ostream *>(this);
   }
 
@@ -135,11 +134,11 @@ public:
     return os.pword(x_stream_id_) == std::addressof(os);
   }
 
-  void increase_level() const { buf_.increase_level(); }
+  void increase_level() const { buf_t::increase_level(); }
 
-  void decrease_level() const { buf_.decrease_level(); }
+  void decrease_level() const { buf_t::decrease_level(); }
 
-  int get_current_level() const { return buf_.get_current_level(); }
+  int get_current_level() const { return buf_t::get_current_level(); }
 };
 
 inline auto increase_indent = [](std::ostream &os) -> std::ostream & {
