@@ -4,23 +4,34 @@ SHELL = /usr/bin/env bash
 BUILD_DIR ?= build
 BUILD_TARGET ?= all
 BUILD_TYPE ?= Debug
-GENERATOR ?= Ninja Multi-Config
 INSTALL_PREFIX ?= $(BUILD_DIR)/install
 TOOLCHAIN ?= gcc
 
 PARALLEL ?= ON
 VERBOSE ?= ON
 
+GENERATOR := Ninja Multi-Config
 CORES != nproc --all
-PARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "--parallel $(CORES)"
+PARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "--parallel $(CORES)" || echo "--parallel 1"
 JPARALLEL_OPTION != [[ "$(PARALLEL)" == "ON" ]] && echo "-j$(CORES)"
 VERBOSE_OPTION != [[ "$(VERBOSE)" == "ON" ]] && echo "--verbose"
 
+.PHONY: all
+all: \
+	conan \
+	config \
+	compile_commands \
+	build \
+	test \
+	install \
+
 .PHONY: conan
 conan:
+	PROFILE=$$(./scripts/pick_conan_profile.py "$(TOOLCHAIN)") || exit 1; \
+	echo "Conan profile picked: '"$$PROFILE"'"; \
 	conan install \
-		--profile:host $(TOOLCHAIN).jinja \
-		--profile:build $(TOOLCHAIN).jinja \
+		--profile:host $$PROFILE \
+		--profile:build $$PROFILE \
 		--settings build_type=$(BUILD_TYPE) \
 		--build missing \
 		--install-folder $(BUILD_DIR) \
@@ -44,7 +55,7 @@ compile_commands:
 		 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		 -DCMAKE_TOOLCHAIN_FILE="$(BUILD_DIR)/conan_toolchain.cmake" \
 	
-	ln --symbolic "$(BUILD_DIR)/compile_commands/compile_commands.json" compile_commands.json
+	ln --symbolic --force "$(BUILD_DIR)/compile_commands/compile_commands.json" compile_commands.json
 
 .PHONY: build
 build:
@@ -88,10 +99,12 @@ DOCKER_ADMIN ?= false
 DOCKER_CONAN_CACHE ?= $$HOME/.conan/data
 DOCKER_KEEP_CI_USER_SUDO ?= false
 
-DOCKER_IMAGE_TAG := rudenkornk/docker_cpp:0.2.2
+DOCKER_IMAGE_TAG := rudenkornk/docker_cpp:0.2.5
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 DOCKER_CONTAINER_USER != [[ "$(DOCKER_ADMIN)" != "true" ]] && echo "ci_user" || echo "root"
+DOCKER_COMMAND != [[ ! -z '$(COMMAND)' ]] && echo '$$(COMMAND)' || echo 'make $$(TARGET)'
+
 
 IF_DOCKERD_UP := command -v docker &> /dev/null && pidof dockerd &> /dev/null
 
@@ -105,20 +118,6 @@ ifneq ($(DOCKER_CONTAINER_ID),)
 endif
 	mkdir --parents "$(DOCKER_CONAN_CACHE)"
 	docker run --interactive --tty --detach \
-		--env BUILD_DIR="$(BUILD_DIR)" \
-		--env BUILD_TYPE="$(BUILD_TYPE)" \
-		--env BUILD_TARGET="$(BUILD_TARGET)" \
-		--env GENERATOR="$(GENERATOR)" \
-		--env INSTALL_PREFIX="$(INSTALL_PREFIX)" \
-		--env TOOLCHAIN="$(TOOLCHAIN)" \
-		\
-		--env PARALLEL="$(PARALLEL)" \
-		--env VERBOSE="$(VERBOSE)" \
-		\
-		--env COMMIT="$(COMMIT)" \
-		--env CLANG_FORMAT_OUTPUT="$(CLANG_FORMAT_OUTPUT)" \
-		--env CLANG_TIDY_OUTPUT="$(CLANG_TIDY_OUTPUT)" \
-		\
 		--env KEEP_CI_USER_SUDO="$(DOCKER_KEEP_CI_USER_SUDO)" \
 		--env CI_UID="$$(id --user)" --env CI_GID="$$(id --group)" \
 		--env "TERM=xterm-256color" \
@@ -135,9 +134,21 @@ container: $(DOCKER_CONTAINER)
 
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
-ifneq ($(COMMAND),)
-	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) bash -c '$(COMMAND)'
-else
-	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) bash -c 'make $(TARGET)'
-endif
+	docker exec \
+		--env BUILD_DIR="$(BUILD_DIR)" \
+		--env BUILD_TYPE="$(BUILD_TYPE)" \
+		--env BUILD_TARGET="$(BUILD_TARGET)" \
+		--env INSTALL_PREFIX="$(INSTALL_PREFIX)" \
+		--env TOOLCHAIN="$(TOOLCHAIN)" \
+		\
+		--env PARALLEL="$(PARALLEL)" \
+		--env VERBOSE="$(VERBOSE)" \
+		\
+		--env COMMIT="$(COMMIT)" \
+		--env CLANG_FORMAT_OUTPUT="$(CLANG_FORMAT_OUTPUT)" \
+		--env CLANG_TIDY_OUTPUT="$(CLANG_TIDY_OUTPUT)" \
+		\
+		--user $(DOCKER_CONTAINER_USER) \
+		$(DOCKER_CONTAINER_NAME) \
+		bash -c '$(DOCKER_COMMAND)'
 

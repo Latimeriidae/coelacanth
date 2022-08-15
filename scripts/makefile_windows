@@ -12,14 +12,24 @@ PARALLEL ?= ON
 VERBOSE ?= ON
 
 CORES != (Get-CimInstance -ClassName Win32_ComputerSystem).NumberOfLogicalProcessors
-PARALLEL_OPTION != if("$(PARALLEL)" -eq "ON"){return "--parallel $(CORES)"}
+PARALLEL_OPTION != if("$(PARALLEL)" -eq "ON"){return "--parallel $(CORES)"}else{return "--parallel 1"}
 VERBOSE_OPTION != if("$(VERBOSE)" -eq "ON"){return "--verbose"}
+
+.PHONY: all
+all: \
+	conan \
+	config \
+	build \
+	test \
+	install \
 
 .PHONY: conan
 conan:
-	conan install <#\
-		#> --profile:host vs_$(TOOLCHAIN).jinja <#\
-		#> --profile:build vs_$(TOOLCHAIN).jinja <#\
+	$$($$PROFILE = python .\scripts\pick_conan_profile.py "vs_$(TOOLCHAIN)") || $$(throw); <#\
+	#> echo "Conan profile picked: $$PROFILE"; <#\
+	#> conan install <#\
+		#> --profile:host $$PROFILE <#\
+		#> --profile:build $$PROFILE <#\
 		#> --settings build_type=$(BUILD_TYPE) <#\
 		#> --build missing <#\
 		#> --install-folder $(BUILD_DIR) <#\
@@ -55,14 +65,15 @@ install:
 ###################### docker support ######################
 TARGET ?=
 COMMAND ?=
+DOCKER_ADMIN ?= false
 DOCKER_CONAN_CACHE ?= $$HOME/.conan/data
 DOCKER_ISOLATION ?= hyperv # process or hyperv
-DOCKER_ADMIN ?= false
 
 DOCKER_IMAGE_TAG := rudenkornk/docker_cpp_windows:0.2.2
 DOCKER_CONTAINER_NAME := $(PROJECT_NAME)_container
 DOCKER_CONTAINER := $(BUILD_DIR)/$(DOCKER_CONTAINER_NAME)
 DOCKER_CONTAINER_USER != if("$(DOCKER_ADMIN)".ToLower() -ne "true"){return "ContainerUser"}else{return "ContainerAdministrator"}
+DOCKER_COMMAND != if('$(COMMAND)'){return '$$(COMMAND)'}else{return 'make $$(TARGET)'}
 
 DOCKERD_UP != try{Set-Variable -Name ErrorActionPreference -Value stop -Scope Private; if((Get-Command docker) -and (Get-Process dockerd)){return $$true}}Catch{return $$false}
 
@@ -76,15 +87,6 @@ ifneq ($(DOCKER_CONTAINER_ID),)
 endif
 	New-Item -Force -ItemType "directory" -Path "$(DOCKER_CONAN_CACHE)"
 	docker run --interactive --tty --detach <#\
-		#> --env BUILD_DIR="$(BUILD_DIR)" <#\
-		#> --env BUILD_TARGET="$(BUILD_TARGET)" <#\
-		#> --env BUILD_TYPE="$(BUILD_TYPE)" <#\
-		#> --env INSTALL_PREFIX="$(INSTALL_PREFIX)" <#\
-		#> --env TOOLCHAIN="$(TOOLCHAIN)" <#\
-		#> <#\
-		#> --env PARALLEL="$(PARALLEL)" <#\
-		#> --env VERBOSE="$(VERBOSE)" <#\
-		#> <#\
 		#> --name $(DOCKER_CONTAINER_NAME) <#\
 		#> --user $(DOCKER_CONTAINER_USER) <#\
 		#> --mount type=bind,source="$$(Get-Location)",target=C:\repo <#\
@@ -99,9 +101,17 @@ container: $(DOCKER_CONTAINER)
 
 .PHONY: in_docker
 in_docker: $(DOCKER_CONTAINER)
-ifneq ($(COMMAND),)
-	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat $(COMMAND)'
-else
-	docker exec --user $(DOCKER_CONTAINER_USER) $(DOCKER_CONTAINER_NAME) pwsh -Command 'C:\vs_exec.bat make $(TARGET)'
-endif
+	docker exec <#\
+		#> --env BUILD_DIR="$(BUILD_DIR)" <#\
+		#> --env BUILD_TARGET="$(BUILD_TARGET)" <#\
+		#> --env BUILD_TYPE="$(BUILD_TYPE)" <#\
+		#> --env INSTALL_PREFIX="$(INSTALL_PREFIX)" <#\
+		#> --env TOOLCHAIN="$(TOOLCHAIN)" <#\
+		#> <#\
+		#> --env PARALLEL="$(PARALLEL)" <#\
+		#> --env VERBOSE="$(VERBOSE)" <#\
+		#> <#\
+		#> --user $(DOCKER_CONTAINER_USER) <#\
+		#> $(DOCKER_CONTAINER_NAME) <#\
+		#> pwsh -Command 'C:\vs_exec.bat $(DOCKER_COMMAND)'
 

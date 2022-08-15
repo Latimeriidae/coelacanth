@@ -1,9 +1,9 @@
-import os
 import re
 
-from conans import ConanFile, CMake
+from conans import ConanFile
 from conan.tools.cmake import CMakeToolchain
 from conan.tools.cmake import CMakeDeps
+
 
 class CoelacanthConan(ConanFile):
     settings = [
